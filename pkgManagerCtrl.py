@@ -5,6 +5,8 @@ try:
     from os.path import exists, isdir, isfile
 
     from lxml import etree
+    import socket
+    from threading import Thread
     
     import pkgManagerTools
     from pkgManagerDM import PkgFile, VitaFile
@@ -12,12 +14,11 @@ except ImportError:
     assert False, "import error in pkgManagerCtrl"
     
 class PkgCtrl():
-    def __init__(self, directory, downloadFile):
+    def __init__(self, directory, downloadFile, apiCtrl):
         self.directory = directory
         self.downloadFile = downloadFile
 
-    #def SetDirectory(self,directory):
-        #self.directory = directory
+        apiCtrl.Subscribe("GetLocalPkgsData", self.GetLocalPkgsData())
 
     def GetDirectory(self):
         return self.directory
@@ -147,4 +148,67 @@ class MessageCtrl():
                     print 'code', code, 'message', message
                 else:
                     self.ui.Print(code, message)
+
+class APICtrl():
+    def __init__(self, port, iniFile = ''):
+        self.iniFile = iniFile
+        self.apis = {}
+        
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.port = port
+        
+        self.socket.bind(('', self.port))
+
+    def GetSocket(self):
+        return self.socket
+
+    def GetAPIs(self):
+        return self.apis
+        
+    def Start(self, ):
+        self.__initCtrls()
+
+        self.listenThread = Listen(self)
+        self.listenThread.start()
+        #while True:
+            #self.socket.listen(5)
+            #client, address = socket.accept()
+            #print "{} connected".format( address )
+
+            #response = client.recv(255)
+            #if response != "":
+                    #print response
+
+    def __initCtrls(self):
+        messageCtrl = MessageCtrl(ui = 'stdout') ## message displaid on the stdout
+
+        iniCtrl = IniCtrl(self.iniFile)
+        code, message = iniCtrl.ParseIni()
+        messageCtrl.ManageMessage(code, message)
+
+        pkgCtrl = PkgCtrl(iniCtrl.GetValue('pkgDirectory'), iniCtrl.GetValue('pkgDownloadFile'), self)
+        vitaCtrl = VitaCtrl(iniCtrl.GetValue('vitaDirectory'))
+
+    def Subscribe(self, name, command):
+        self.apis[name] = command
+        
+    def API(self, name):
+        
+        
+class Listen(Thread):
+    def __init__(self, apiCtrl):
+        Thread.__init__(self)
+        self.apiCtrl = apiCtrl
+
+    def run(self):
+        while True:
+            socket = self.apiCtrl.GetSocket()
+            apis = self.apiCtrl.GetAPIs()
+            socket.listen(5)
+            client, address = socket.accept()
+            print "{} connected".format( address )
+
+            response = client.recv(255)
+            if response != "":
+                    print response
         

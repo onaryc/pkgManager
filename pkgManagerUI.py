@@ -9,7 +9,8 @@ try:
     import wx.lib.newevent
 
     ## custom module
-    from pkgManagerCtrl import PkgCtrl, VitaCtrl, IniCtrl, MessageCtrl
+    #from pkgManagerCtrl import PkgCtrl, VitaCtrl, IniCtrl, MessageCtrl
+    from pkgManagerCtrl import APICtrl
     #import pkgManagerCtrl
 except ImportError:
     assert False, "import error in pkgManagerUI"
@@ -22,6 +23,14 @@ ID_BUTTON_SAVE_INI = wx.NewId()
 ID_BUTTON_RESET_INI = wx.NewId()
 
 #SendMessage, EVT_SEND_MESSAGE = wx.lib.newevent.NewEvent()
+
+class UI():
+    def __init__(self):
+        self.ui = wx.App(False)
+        self.mainFrame = MainFrame(None, title="Pkg Manager")
+        
+    def Start():
+        self.ui.MainLoop()
 
 class MainFrame(wx.Frame):
     def __init__(self, parent, title):
@@ -251,23 +260,21 @@ class AppSettings(wx.Panel):
     def OnReset(self, event):
         self.InitValues()
         
-## initialize the controllers
-messageCtrl = MessageCtrl(ui = 'stdout') ## message displaid on the stdout
 
-iniCtrl = IniCtrl('pkgManager.ini')
-code, message = iniCtrl.ParseIni()
-messageCtrl.ManageMessage(code, message)
+#messageCtrl = MessageCtrl(ui = 'stdout') ## message displaid on the stdout
 
-pkgCtrl = PkgCtrl(iniCtrl.GetValue('pkgDirectory'), iniCtrl.GetValue('pkgDownloadFile'))
-vitaCtrl = VitaCtrl(iniCtrl.GetValue('vitaDirectory'))
+#iniCtrl = IniCtrl('pkgManager.ini')
+#code, message = iniCtrl.ParseIni()
+#messageCtrl.ManageMessage(code, message)
+
+#pkgCtrl = PkgCtrl(iniCtrl.GetValue('pkgDirectory'), iniCtrl.GetValue('pkgDownloadFile'))
+#vitaCtrl = VitaCtrl(iniCtrl.GetValue('vitaDirectory'))
 
 ## initialize the UI
-app = wx.App(False)
+#app = wx.App(False)
 
-mainFrame = MainFrame(None, title="Pkg Manager")
-messageCtrl.SetUI(mainFrame) ## message shall be displaid through the ui now
+#mainFrame = MainFrame(None, title="Pkg Manager")
+#messageCtrl.SetUI(mainFrame) ## message shall be displaid through the ui now
 
-#mainFrame.Show()
-
-app.MainLoop()
+#app.MainLoop()
 
