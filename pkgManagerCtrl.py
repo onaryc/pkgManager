@@ -1,61 +1,87 @@
 #!/usr/bin/env python2
 
-
 try:
     from os.path import exists, isdir, isfile
 
     from lxml import etree
-    import socket
-    from threading import Thread
     
+    import APICtrl as API
     import pkgManagerTools
     from pkgManagerDM import PkgFile, VitaFile
 except ImportError:
     assert False, "import error in pkgManagerCtrl"
-    
+
+class Controllers():
+    def __init__(self, iniFile):
+        iniCtrl = IniCtrl(iniFile)
+
+        messageCtrl = MessageCtrl(ui = 'stdout') ## message displaid on the stdout
+
+        res, code, message = iniCtrl.ParseIni()
+        #~ messageCtrl.ManageMessage(code, message)
+        
+        #~ API.Send('ParseIni')
+
+        pkgDirectory, code, message = iniCtrl.GetValue('pkgDirectory')
+        pkgDownloadFile, code, message = iniCtrl.GetValue('pkgDownloadFile')
+        vitaDirectory, code, message = iniCtrl.GetValue('vitaDirectory')
+
+        pkgCtrl = PkgCtrl(pkgDirectory, pkgDownloadFile, self)
+        vitaCtrl = VitaCtrl(vitaDirectory)
+        
 class PkgCtrl():
-    def __init__(self, directory, downloadFile, apiCtrl):
+    def __init__(self, directory, downloadFile, controllers):
         self.directory = directory
         self.downloadFile = downloadFile
 
-        apiCtrl.Subscribe("GetLocalPkgsData", self.GetLocalPkgsData())
+        API.Subscribe('GetLocalPkgsData', lambda args: self.GetLocalPkgsData(*args))
+        API.Subscribe('GetPkgDirectory', lambda args: self.GetDirectory(*args))
+        API.Subscribe('GetDownloadFile', lambda args: self.GetDownloadFile(*args))
 
-    def GetDirectory(self):
-        return self.directory
+    def GetDirectory(self, *args):
+        return self.directory, 0, ''
         
-    def GetDownloadFile(self):
-        return self.downloadFile
+    def GetDownloadFile(self, *args):
+        return self.downloadFile, 0, ''
 
-    def GetLocalPkgsData(self):
+    def GetLocalPkgsData(self, *args):
         pkgs = []
         code = 0
         message = ''
         
         ## test if the specified pkg directory is a directory and exists
-        if (exists(self.directory) == True) and (isdir(self.directory) == True):
-            pkgFiles = pkgManagerTools.listPkgFiles(self.directory)
+        if (self.directory != None) or (self.directory != ''):
+            if (exists(self.directory) == True) and (isdir(self.directory) == True):
+                pkgFiles = pkgManagerTools.listPkgFiles(self.directory)
 
-            for pkgFile in pkgFiles:
-                pkgFile = PkgFile(filename = pkgFile)
-                pkgs.append(pkgFile.serialize())
+                for pkgFile in pkgFiles:
+                    pkgFile = PkgFile(filename = pkgFile)
+                    pkgs.append(pkgFile.serialize())
 
+            else:
+                code = -1
+                message = self.directory + ' is not a directory or does not exist'
         else:
             code = -1
-            message = self.directory + ' is not a directory or does not exist'
+            message = 'Pkg directory is empty'
             
         return pkgs, code, message
+        #~ return pkgs, 'list', code, message
 
 class VitaCtrl():
     def __init__(self, directory):
         self.directory = directory
 
+        API.Subscribe('GetVitaDirectory', lambda args: self.GetDirectory(args))
+        API.Subscribe('GetLocalVitaData', lambda args: self.GetLocalVitaData(args))
+        
     #def SetDirectory(self,directory):
         #self.directory = directory
 
-    def GetDirectory(self):
-        return self.directory
+    def GetDirectory(self, *args):
+        return self.directory, 0, ''
 
-    def GetLocalVitaData(self):
+    def GetLocalVitaData(self, *args):
         vitaApps = []
         message = ''
         
@@ -63,25 +89,46 @@ class VitaCtrl():
             ## list all app/dlc/update
             vitaApps = []
         else:
+            code = -1
             message = self.directory + ' is not a directory or does not exist'
 
-        return vitaApps, message
+        return vitaApps, code, message
 
 class IniCtrl():
     def __init__(self, inifile):
         self.inifile = inifile
         self.values = {}
+        
+        API.Subscribe('ParseIni', lambda args: self.ParseIni(*args))
+        API.Subscribe('GetIniValue', lambda args: self.GetValue(*args))
+        API.Subscribe('SetIniValue', lambda args: self.SetValues(*args))
+        API.Subscribe('SerializeIni', lambda args: self.SerializeIni(*args))
 
     def ResetValues(self):
         self.values = {}
 
-    def SetValues(self, key, value):
+    def SetValues(self, *args):
+        key = args[0]
+        value = args[1]
+
         self.values[key] = value
 
-    def GetValue(self, key):
-        return self.values[key]
+        return '', 0, ''
 
-    def ParseIni(self):
+    def GetValue(self, *args):
+        key = args[0]
+        if key in self.values:
+            res = self.values[key]
+            code = 0
+            message = ''
+        else:
+            res = ''
+            code = -1
+            message = key + ' value does not exist'
+
+        return res, code, message
+
+    def ParseIni(self, *args):
         code = 0
         message = ''
         
@@ -105,9 +152,9 @@ class IniCtrl():
             code = 0
             message = 'Ini file does not exists or is not a file'
 
-        return code, message
+        return '', code, message
         
-    def SerializeIni(self):
+    def SerializeIni(self, *args):
         code = 0
         message = ''
         
@@ -130,7 +177,7 @@ class IniCtrl():
             code = -1
             message = 'Ini file does not exists or is not a file'
 
-        return code, message
+        return '', code, message
         
 
 class MessageCtrl():
@@ -148,67 +195,3 @@ class MessageCtrl():
                     print 'code', code, 'message', message
                 else:
                     self.ui.Print(code, message)
-
-class APICtrl():
-    def __init__(self, port, iniFile = ''):
-        self.iniFile = iniFile
-        self.apis = {}
-        
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.port = port
-        
-        self.socket.bind(('', self.port))
-
-    def GetSocket(self):
-        return self.socket
-
-    def GetAPIs(self):
-        return self.apis
-        
-    def Start(self, ):
-        self.__initCtrls()
-
-        self.listenThread = Listen(self)
-        self.listenThread.start()
-        #while True:
-            #self.socket.listen(5)
-            #client, address = socket.accept()
-            #print "{} connected".format( address )
-
-            #response = client.recv(255)
-            #if response != "":
-                    #print response
-
-    def __initCtrls(self):
-        messageCtrl = MessageCtrl(ui = 'stdout') ## message displaid on the stdout
-
-        iniCtrl = IniCtrl(self.iniFile)
-        code, message = iniCtrl.ParseIni()
-        messageCtrl.ManageMessage(code, message)
-
-        pkgCtrl = PkgCtrl(iniCtrl.GetValue('pkgDirectory'), iniCtrl.GetValue('pkgDownloadFile'), self)
-        vitaCtrl = VitaCtrl(iniCtrl.GetValue('vitaDirectory'))
-
-    def Subscribe(self, name, command):
-        self.apis[name] = command
-        
-    def API(self, name):
-        
-        
-class Listen(Thread):
-    def __init__(self, apiCtrl):
-        Thread.__init__(self)
-        self.apiCtrl = apiCtrl
-
-    def run(self):
-        while True:
-            socket = self.apiCtrl.GetSocket()
-            apis = self.apiCtrl.GetAPIs()
-            socket.listen(5)
-            client, address = socket.accept()
-            print "{} connected".format( address )
-
-            response = client.recv(255)
-            if response != "":
-                    print response
-        

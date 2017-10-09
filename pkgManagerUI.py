@@ -7,11 +7,8 @@ try:
     import wx
     from wx.lib.mixins.listctrl import ColumnSorterMixin, ListCtrlAutoWidthMixin
     import wx.lib.newevent
-
-    ## custom module
-    #from pkgManagerCtrl import PkgCtrl, VitaCtrl, IniCtrl, MessageCtrl
-    from pkgManagerCtrl import APICtrl
-    #import pkgManagerCtrl
+    
+    import APICtrl as API
 except ImportError:
     assert False, "import error in pkgManagerUI"
 
@@ -26,16 +23,25 @@ ID_BUTTON_RESET_INI = wx.NewId()
 
 class UI():
     def __init__(self):
-        self.ui = wx.App(False)
-        self.mainFrame = MainFrame(None, title="Pkg Manager")
+        self.app = wx.App(False)
         
-    def Start():
-        self.ui.MainLoop()
+        self.mainFrame = MainFrame(None, 'Pkg Manager', self)
+        
+    def Start(self):
+        self.mainFrame.InitValues()
+        
+        self.app.MainLoop()
+        
+    def Stop(self):
+        API.Stop()
+        
+        
 
 class MainFrame(wx.Frame):
-    def __init__(self, parent, title):
+    def __init__(self, parent, title, ui):
         wx.Frame.__init__(self, parent, title=title, size=(800,400))
         
+        self.ui = ui
         self.statusBar = self.CreateStatusBar() # A Statusbar in the bottom of the window
 
         # Setting up the menu.
@@ -68,6 +74,8 @@ class MainFrame(wx.Frame):
         # Set events.
         self.Bind(wx.EVT_MENU, self.OnAbout, menuAbout)
         self.Bind(wx.EVT_MENU, self.OnExit, menuExit)
+        self.Bind(wx.EVT_CLOSE, self.OnExit)
+
 
         self.notebook = wx.Notebook(self)
 
@@ -78,27 +86,40 @@ class MainFrame(wx.Frame):
         self.notebook.AddPage(self.panelPkg, "Pkg Files")
         self.notebook.AddPage(self.panelVita, "Vita Files")
         self.notebook.AddPage(self.panelSettings, "Settings")
-
-        ## for testing purpose shall be call with a button
-        self.panelPkg.PopulateInfo()
         
         self.Show(True)
 
-    def OnAbout(self,e):
+    def InitValues(self):
+        self.panelPkg.InitValues()
+        self.panelSettings.InitValues()
+        
+    def OnAbout(self, event):
         # A message dialog box with an OK button. wx.OK is a standard ID in wxWidgets.
         dlg = wx.MessageDialog( self, "Pkg Manager 0.1", "About Pkg Manager", wx.OK)
         dlg.ShowModal()
         dlg.Destroy()
         
-    def OnExit(self,e):
+    def OnExit(self, event):
         dlg = wx.MessageDialog(self, 
             "Do you really want to close this application?",
             "Confirm Exit", wx.OK|wx.CANCEL|wx.ICON_QUESTION)
         result = dlg.ShowModal()
         dlg.Destroy()
         if result == wx.ID_OK:
+            self.ui.Stop()
             self.Destroy()
             #self.Close(True)
+            
+        
+        
+        #~ dlg = wx.MessageDialog(self, 
+            #~ "Do you really want to close this application?",
+            #~ "Confirm Exit", wx.OK|wx.CANCEL|wx.ICON_QUESTION)
+        #~ result = dlg.ShowModal()
+        #~ dlg.Destroy()
+        #~ if result == wx.ID_OK:
+            #~ self.Destroy()
+            #~ #self.Close(True)
 
     def Print(self, code, message):
         print 'Print', code, message
@@ -123,6 +144,7 @@ class PkgView(UIView):
         self.AppendColumn('Region')
         self.AppendColumn('Filename')
         self.AppendColumn('FW Version')
+        self.AppendColumn('Size')
         self.AppendColumn('Url')
         self.AppendColumn('zRIF')
 
@@ -134,12 +156,13 @@ class VitaView(UIView):
         self.AppendColumn('Type')
         self.AppendColumn('Name')
         self.AppendColumn('Region')
+        self.AppendColumn('Size')
         self.AppendColumn('Directory')
         
 class PkgFiles(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
-
+        
         self.listCtrl = PkgView(self)
 
         mainSizer = wx.BoxSizer(wx.VERTICAL)
@@ -151,11 +174,11 @@ class PkgFiles(wx.Panel):
 
         self.SetSizerAndFit(mainSizer)
 
-    def PopulateInfo(self):
-        pkgsData, code, message = pkgCtrl.GetLocalPkgsData()
-
-        messageCtrl.ManageMessage(code, message)
-
+    def InitValues(self):
+        #pkgsData, code, message = pkgCtrl.GetLocalPkgsData()
+        pkgsData = API.Send('GetLocalPkgsData')
+        print 'pkgsData', pkgsData
+        
         for pkgData in pkgsData:
             self.listCtrl.AddEntry(entry)
         
@@ -177,7 +200,7 @@ class VitaFiles(wx.Panel):
 class AppSettings(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
-
+        
         ## file/directory browsers definition and sizer
         self.pkgDirectory = wx.DirPickerCtrl(self, style = wx.DIRP_DEFAULT_STYLE|wx.DIRP_DIR_MUST_EXIST, message = 'Select the Pkg Directory')
         self.vitaDirectory = wx.DirPickerCtrl(self, style = wx.DIRP_DEFAULT_STYLE|wx.DIRP_DIR_MUST_EXIST, message = 'Select the vita Directory')
@@ -209,9 +232,6 @@ class AppSettings(wx.Panel):
         pkgDownloadFileSizer.Add(text3, textFlags)
         pkgDownloadFileSizer.Add(self.pkgDownloadFile, browserFlags)
         
-        ## init the values from the ctrl
-        self.InitValues()
-        
         ## save ini file button definition and sizer
         self.saveButton = wx.Button(self, id = ID_BUTTON_SAVE_INI, label='Save Ini')
         self.saveButton.Bind(wx.EVT_BUTTON, self.OnSaveIni)
@@ -231,50 +251,32 @@ class AppSettings(wx.Panel):
         mainSizer.Add(buttonSizer, 0, wx.LEFT, 0)
 
         self.SetSizerAndFit(mainSizer)
-
+        
     def InitValues(self):
-        pkgDirectory = pkgCtrl.GetDirectory()
+        global ui
+
+        pkgDirectory = API.Send('GetPkgDirectory')
         self.pkgDirectory.SetPath(pkgDirectory)
 
-        vitaDirectory = vitaCtrl.GetDirectory()
+        vitaDirectory = API.Send('GetVitaDirectory')
         self.vitaDirectory.SetPath(vitaDirectory)
 
-        downloadFile = pkgCtrl.GetDownloadFile()
+        downloadFile = API.Send('GetDownloadFile')
         self.pkgDownloadFile.SetPath(downloadFile)
         
     def OnSaveIni(self, event):
         ## set the new values
         pkgDirectory = self.pkgDirectory.GetPath()
-        iniCtrl.SetValues('pkgDirectory', pkgDirectory)
+        API.Send('SetIniValue', 'pkgDirectory', pkgDirectory)
         
         pkgDownloadFile = self.pkgDownloadFile.GetPath()
-        iniCtrl.SetValues('pkgDownloadFile', pkgDownloadFile)
+        API.Send('SetIniValue', 'pkgDownloadFile', pkgDownloadFile)
         
         vitaDirectory = self.vitaDirectory.GetPath()
-        iniCtrl.SetValues('vitaDirectory', vitaDirectory)
+        API.Send('SetIniValue', 'vitaDirectory', vitaDirectory)
         
         ## serialize the ini values
-        code, message = iniCtrl.SerializeIni()
-        messageCtrl.ManageMessage(code, message)
+        API.Send('SerializeIni')
 
     def OnReset(self, event):
         self.InitValues()
-        
-
-#messageCtrl = MessageCtrl(ui = 'stdout') ## message displaid on the stdout
-
-#iniCtrl = IniCtrl('pkgManager.ini')
-#code, message = iniCtrl.ParseIni()
-#messageCtrl.ManageMessage(code, message)
-
-#pkgCtrl = PkgCtrl(iniCtrl.GetValue('pkgDirectory'), iniCtrl.GetValue('pkgDownloadFile'))
-#vitaCtrl = VitaCtrl(iniCtrl.GetValue('vitaDirectory'))
-
-## initialize the UI
-#app = wx.App(False)
-
-#mainFrame = MainFrame(None, title="Pkg Manager")
-#messageCtrl.SetUI(mainFrame) ## message shall be displaid through the ui now
-
-#app.MainLoop()
-
