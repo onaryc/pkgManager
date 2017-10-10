@@ -1,12 +1,35 @@
 #!/usr/bin/env python2
 
-class PkgFile():
-    instanceVariables = [\
-        {'name': 'filename', 'default':''}, \
-        {'name': 'titleID', 'default':''}, \
-        {'name': 'titleName', 'default':''}, \
-        {'name': 'titleRegion', 'default':''}, \
-        ]
+class ObjectFile():
+    #def GetClassVars(self):
+        #className = type(self).__name__
+        
+        #return GetClassVars(className)
+
+    #def GetClassVars(className):
+        #return vars(className)
+
+    @classmethod
+    def GetClassVars(cls):
+        return vars(cls)
+
+    #def Serialize(self):
+        #return vars(self)
+
+class PkgFile(ObjectFile):
+    #instanceVariables = [\
+        #{'name': 'filename', 'default':''}, \
+        #{'name': 'titleID', 'default':''}, \
+        #{'name': 'titleName', 'default':''}, \
+        #{'name': 'titleRegion', 'default':''}, \
+        #{'name': 'titleType', 'default':''}, \
+        #{'name': 'titleFW', 'default':''}, \
+        #{'name': 'fileSize', 'default':0}, \
+        #{'name': 'downloadURL', 'default':''}, \
+        #{'name': 'zRIF', 'default':''}, \
+        #]
+    filename = ''
+    titleID = ''
     def __init__(self, filename='', titleID='', titleName='', titleRegion='', titleType='', titleFW='', downloadURL='', zRIF=''):
         self.filename = filename
         self.titleID = titleID
@@ -18,10 +41,13 @@ class PkgFile():
         self.downloadURL = downloadURL
         self.zRIF = zRIF
 
-    def serialize(self):
+    def Serialize(self):
         return [self.titleID, self.titleType, self.titleName, self.titleRegion, self.filename, self.titleFW, self.fileSize, self.downloadURL, self.zRIF]
 
-class VitaFile():
+    #def Serialize(self):
+        #return vars(self)
+
+class VitaFile(ObjectFile):
     def __init__(self):
         self.titleID = ''
         self.titleName = ''

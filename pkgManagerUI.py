@@ -138,6 +138,9 @@ class PkgView(UIView):
     def __init__(self, parent):
         UIView.__init__(self, parent)
 
+        res = API.Send('GetModelAttributes', 'PkgFile')
+
+        print 'PkgFile', res
         self.AppendColumn('Title ID')
         self.AppendColumn('Type') # game, update or DLC
         self.AppendColumn('Name')
@@ -180,7 +183,7 @@ class PkgFiles(wx.Panel):
         print 'pkgsData', pkgsData
         
         for pkgData in pkgsData:
-            self.listCtrl.AddEntry(entry)
+            self.listCtrl.AddEntry(pkgData)
         
 class VitaFiles(wx.Panel):
     def __init__(self, parent):

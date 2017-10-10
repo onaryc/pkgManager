@@ -7,7 +7,7 @@ try:
     
     import APICtrl as API
     import pkgManagerTools
-    from pkgManagerDM import PkgFile, VitaFile
+    from pkgManagerDM import PkgFile, VitaFile, ObjectFile
 except ImportError:
     assert False, "import error in pkgManagerCtrl"
 
@@ -28,9 +28,25 @@ class Controllers():
 
         pkgCtrl = PkgCtrl(pkgDirectory, pkgDownloadFile, self)
         vitaCtrl = VitaCtrl(vitaDirectory)
+
+class DataCtrl():
+    def __init__(self):
+        API.Subscribe('GetModelAttributes', lambda args: self.GetModelAttributes(*args))
+
+    def GetModelAttributes(self, *args):
+        className = args[0]
+
+        print 'className', className
+
+        #modelAttributes = vars(PkgFile).keys()
+        modelAttributes = PkgFile.GetClassVars()
+        print 'modelAttributes', modelAttributes
+        return modelAttributes, 0, ''
         
-class PkgCtrl():
+class PkgCtrl(DataCtrl):
     def __init__(self, directory, downloadFile, controllers):
+        DataCtrl.__init__(self)
+        
         self.directory = directory
         self.downloadFile = downloadFile
 
@@ -56,7 +72,8 @@ class PkgCtrl():
 
                 for pkgFile in pkgFiles:
                     pkgFile = PkgFile(filename = pkgFile)
-                    pkgs.append(pkgFile.serialize())
+                    #pkgFile.Debug()
+                    pkgs.append(pkgFile.Serialize())
 
             else:
                 code = -1
