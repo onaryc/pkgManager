@@ -4,6 +4,7 @@ try:
     import ast
     import socket
     from threading import Thread
+    from MessageTools import Print, DPrint, ManageMessage
 except ImportError:
     assert False, "import error in APICtrl"
 
@@ -17,22 +18,23 @@ def Init(host, port):
     global sockServer, sockClient 
     global errorServer, errorClient
     global listenThread
+    global debugOutput
 
     sockServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sockClient = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    DPrint('Api Init Start')
     
     ## init server
     try:
-        print 'host', host
-        print 'port', port
         sockServer.bind((host, port))
-        print 'server socket bind ok'
+        DPrint('server socket bind ok')
+        #print 'server socket bind ok'
         
         listenThread = Listen(sockServer)
         listenThread.start()
     except socket.error as e:
-        ## TODO manage error
-        print 'server socket bind failed ({0}): {1}'.format(e.errno, e.strerror)
+        DPrint('server socket bind failed ({0}): {1}'.format(e.errno, e.strerror), -1)
         errorServer = True
     
     ## init client
@@ -40,12 +42,12 @@ def Init(host, port):
         sockClient.settimeout(5)
         sockClient.connect((host, port))
         sockClient.settimeout(None)
-        print 'client connection on {} ok\n'.format(port)
-        #~ print 'init sockClient', sockClient
+        DPrint('client connection on {} ok\n'.format(port))
     except socket.error:
-        ## TODO manage error
-        print 'client socket connection failed'
+        DPrint('client socket connection failed', -1)
         errorClient = True
+
+    DPrint('Api Init End')
         
 def Stop():
     global sockServer, sockClient
@@ -60,24 +62,40 @@ def Subscribe(name, command):
 def Send(api, *args):
     global sockClient, errorServer, errorClient
     res = ''
+
+    DPrint('Api Send Start')
     
-    #~ print 'send sockClient', sockClient
     if (errorServer != True) and (errorClient != True):
         try:
-            print 'client sending api', api
+            DPrint('client sending api ' + api)
             
             ## encrypting the message : dict to str
             message = {'api': api, 'args':args}
             message = str(message)
+
+            ## send the api message
             sockClient.settimeout(1)
             sockClient.send(message)
             sockClient.settimeout(None)
             
             ## receiving the result
             try:
-                resSock = sockClient.recv(8192)
+                ## receiving the header of the message : size for now
+                size = sockClient.recv(1024)
+                size = ast.literal_eval(size)
+                DPrint('client recv header size ' + str(size))
+                
+                ## recieving the message itself
+                resSock = ''
+                remainingSize = size
+                while remainingSize > 0:
+                    tmpSock = sockClient.recv(1024)
+                    tmpSize = len(tmpSock)
+
+                    resSock += tmpSock
+                    remainingSize -= tmpSize
             except socket.error as e:
-                print 'connection socket recv failed ({0}): {1}'.format(e.errno, e.strerror)
+                DPrint('connection socket recv failed ({0}): {1}'.format(e.errno, e.strerror), -1)
                 resSock = ''
                 
             
@@ -86,16 +104,18 @@ def Send(api, *args):
                 resSock = ast.literal_eval(resSock)
                 
                 res = resSock['res']
-                #~ resType = resSock['resType']
                 code = resSock['code']
                 message = resSock['message']
-                
-                print 'client recieving api res', res
+
+                #DPrint(0, 'client recieving api res ' + res)
+                DPrint('client recieving api res')
             except:
                 ## TODO manage error
-                print 'error in decrypting api result', resSock
-        except socket.error:
-            print 'client sending failed'
+                DPrint('error in decrypting api result ' + resSock, -1)
+        except socket.error as e:
+            DPrint('client sending failed ({0}): {1}'.format(e.errno, e.strerror), -1)
+
+    DPrint('Api Send End')
 
     return res
         
@@ -107,17 +127,18 @@ class Listen(Thread):
     def run(self):
         self.socket.listen(2)
         connection, address = self.socket.accept()
-        print 'Server {} connected'.format( address )
+        DPrint('Server {} connected'.format(address))
             
         while True:
+            DPrint('Api Server Wait for message')
+            
             try:
                 resConnection = connection.recv(1024)
             except socket.error as e:
-                 ## TODO manage error
-                print 'connection socket recv failed ({0}): {1}'.format(e.errno, e.strerror)
+                DPrint('connection socket recv failed ({0}): {1}'.format(e.errno, e.strerror), -1)
                 break
-        
-            print 'server recieving', resConnection
+
+            DPrint('Api server recieving ' + resConnection)
             
             ## decrypt the result : str to dict
             if resConnection != '':
@@ -128,24 +149,27 @@ class Listen(Thread):
                 ## test the existence of the api
                 if api in apis:
                     res, code, message = apis[api](args)
-                    resType = ''
-                
-                    #~ print 'api res', res
-                    ## TODO manage the error
                 else:
                     res = ''
-                    resType = 'string'
                     code = -1
                     message = 'api unknown'
             else:
                 res = ''
-                resType = 'string'
                 code = -1
                 message = 'missing api'
 
+            ## manage the message : terminal, log, ...
+            ManageMessage(code, message)
+                    
             ## encrypt the result : dict to str
-            res = {'res': res, 'resType': resType, 'code': code, 'message': message}
-            res = str(res)
-            print 'server sending', res
+            res = {'res': res, 'code': code, 'message': message}
+            resSize = len(str(res))
             
-            connection.send(res)
+            ## send the header of the message : size for now
+            DPrint('Api server send header ' + str(resSize))
+            connection.send(str(resSize))
+
+            ## send the body of the message
+            if resSize > 0:
+                DPrint('Api server responding ')
+                connection.send(str(res))

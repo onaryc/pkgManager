@@ -9,6 +9,7 @@ try:
     import wx.lib.newevent
     
     import APICtrl as API
+    from MessageTools import DPrint
 except ImportError:
     assert False, "import error in pkgManagerUI"
 
@@ -21,27 +22,12 @@ ID_BUTTON_RESET_INI = wx.NewId()
 
 #SendMessage, EVT_SEND_MESSAGE = wx.lib.newevent.NewEvent()
 
-class UI():
-    def __init__(self):
+class UI(wx.Frame):
+    def __init__(self, title = 'Pkg Manager', size=(800,400)):
         self.app = wx.App(False)
         
-        self.mainFrame = MainFrame(None, 'Pkg Manager', self)
+        wx.Frame.__init__(self, None, title=title, size=size)
         
-    def Start(self):
-        self.mainFrame.InitValues()
-        
-        self.app.MainLoop()
-        
-    def Stop(self):
-        API.Stop()
-        
-        
-
-class MainFrame(wx.Frame):
-    def __init__(self, parent, title, ui):
-        wx.Frame.__init__(self, parent, title=title, size=(800,400))
-        
-        self.ui = ui
         self.statusBar = self.CreateStatusBar() # A Statusbar in the bottom of the window
 
         # Setting up the menu.
@@ -86,8 +72,19 @@ class MainFrame(wx.Frame):
         self.notebook.AddPage(self.panelPkg, "Pkg Files")
         self.notebook.AddPage(self.panelVita, "Vita Files")
         self.notebook.AddPage(self.panelSettings, "Settings")
+
+        API.Subscribe('SendUIMessage', lambda args: self.SendUIMessage(*args))
         
         self.Show(True)
+
+    def Start(self):
+        self.InitValues()
+        
+        self.app.MainLoop()
+        
+    def Stop(self):
+        API.Stop()
+        self.Destroy()
 
     def InitValues(self):
         self.panelPkg.InitValues()
@@ -106,61 +103,40 @@ class MainFrame(wx.Frame):
         result = dlg.ShowModal()
         dlg.Destroy()
         if result == wx.ID_OK:
-            self.ui.Stop()
-            self.Destroy()
-            #self.Close(True)
-            
-        
-        
-        #~ dlg = wx.MessageDialog(self, 
-            #~ "Do you really want to close this application?",
-            #~ "Confirm Exit", wx.OK|wx.CANCEL|wx.ICON_QUESTION)
-        #~ result = dlg.ShowModal()
-        #~ dlg.Destroy()
-        #~ if result == wx.ID_OK:
-            #~ self.Destroy()
-            #~ #self.Close(True)
+            self.Stop()
 
-    def Print(self, code, message):
-        print 'Print', code, message
+    def SendUIMessage(self, *args):
+        message = args[0]
+        code = args[1]
+        
         self.statusBar.SetStatusText(message, 0) 
 
 class UIView(wx.ListCtrl, ListCtrlAutoWidthMixin):
-    def __init__(self, parent):
+    def __init__(self, parent, className):
         wx.ListCtrl.__init__(self, parent, size=(-1, -1), style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
 
         ListCtrlAutoWidthMixin.__init__(self)
 
+        ## add the column based on the data model attributes
+        attributes = API.Send('GetModelAttributes', className)
+        for attribute in attributes:
+            if 'display' in attribute:
+                displayName = attribute['display']
+            else:
+                displayName = attribute['name']
+
+            self.AppendColumn(displayName)
+            
     def AddEntry(self, entry):
         self.Append(entry)
 
 class PkgView(UIView):
     def __init__(self, parent):
-        UIView.__init__(self, parent)
-
-        res = API.Send('GetModelAttributes', 'PkgFile')
-
-        print 'PkgFile', res
-        self.AppendColumn('Title ID')
-        self.AppendColumn('Type') # game, update or DLC
-        self.AppendColumn('Name')
-        self.AppendColumn('Region')
-        self.AppendColumn('Filename')
-        self.AppendColumn('FW Version')
-        self.AppendColumn('Size')
-        self.AppendColumn('Url')
-        self.AppendColumn('zRIF')
+        UIView.__init__(self, parent, 'PkgFile')
 
 class VitaView(UIView):
     def __init__(self, parent):
-        UIView.__init__(self, parent)
-
-        self.AppendColumn('Title ID')
-        self.AppendColumn('Type')
-        self.AppendColumn('Name')
-        self.AppendColumn('Region')
-        self.AppendColumn('Size')
-        self.AppendColumn('Directory')
+        UIView.__init__(self, parent, 'VitaFile')
         
 class PkgFiles(wx.Panel):
     def __init__(self, parent):
@@ -178,9 +154,7 @@ class PkgFiles(wx.Panel):
         self.SetSizerAndFit(mainSizer)
 
     def InitValues(self):
-        #pkgsData, code, message = pkgCtrl.GetLocalPkgsData()
         pkgsData = API.Send('GetLocalPkgsData')
-        print 'pkgsData', pkgsData
         
         for pkgData in pkgsData:
             self.listCtrl.AddEntry(pkgData)

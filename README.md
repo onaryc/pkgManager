@@ -2,6 +2,8 @@
 
 # Developper
 ## software
-python 27
-wxPython
-lxml
+
+ * python 27
+ * wxPython
+ * lxml
+ * colorama

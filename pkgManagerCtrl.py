@@ -7,41 +7,49 @@ try:
     
     import APICtrl as API
     import pkgManagerTools
-    from pkgManagerDM import PkgFile, VitaFile, ObjectFile
+    from pkgManagerDM import PkgFile, VitaFile
+    from MessageTools import Print, DPrint, ManageMessage 
 except ImportError:
     assert False, "import error in pkgManagerCtrl"
 
 class Controllers():
     def __init__(self, iniFile):
-        iniCtrl = IniCtrl(iniFile)
+        self.iniCtrl = IniCtrl(iniFile)
 
-        messageCtrl = MessageCtrl(ui = 'stdout') ## message displaid on the stdout
+        #self.messageCtrl = MessageCtrl(ui = 'stdout') ## message displaid on the stdout
 
-        res, code, message = iniCtrl.ParseIni()
+        res, code, message = self.iniCtrl.ParseIni()
         #~ messageCtrl.ManageMessage(code, message)
         
         #~ API.Send('ParseIni')
 
-        pkgDirectory, code, message = iniCtrl.GetValue('pkgDirectory')
-        pkgDownloadFile, code, message = iniCtrl.GetValue('pkgDownloadFile')
-        vitaDirectory, code, message = iniCtrl.GetValue('vitaDirectory')
+        pkgDirectory, code, message = self.iniCtrl.GetValue('pkgDirectory')
+        pkgDownloadFile, code, message = self.iniCtrl.GetValue('pkgDownloadFile')
+        vitaDirectory, code, message = self.iniCtrl.GetValue('vitaDirectory')
 
-        pkgCtrl = PkgCtrl(pkgDirectory, pkgDownloadFile, self)
-        vitaCtrl = VitaCtrl(vitaDirectory)
+        self.pkgCtrl = PkgCtrl(pkgDirectory, pkgDownloadFile, self)
+        self.vitaCtrl = VitaCtrl(vitaDirectory)
 
 class DataCtrl():
     def __init__(self):
         API.Subscribe('GetModelAttributes', lambda args: self.GetModelAttributes(*args))
 
     def GetModelAttributes(self, *args):
+        res = ''
+        code = 0
+        message = ''
+        
         className = args[0]
 
-        print 'className', className
-
-        #modelAttributes = vars(PkgFile).keys()
-        modelAttributes = PkgFile.GetClassVars()
-        print 'modelAttributes', modelAttributes
-        return modelAttributes, 0, ''
+        if className == 'PkgFile':
+            res = PkgFile.GetClassVarsData()
+        elif className == 'VitaFile':
+            res = VitaFile.GetClassVarsData()
+        else:
+            code = -1
+            message = className + ' class does not exist'
+            
+        return res, code, message
         
 class PkgCtrl(DataCtrl):
     def __init__(self, directory, downloadFile, controllers):
@@ -72,9 +80,8 @@ class PkgCtrl(DataCtrl):
 
                 for pkgFile in pkgFiles:
                     pkgFile = PkgFile(filename = pkgFile)
-                    #pkgFile.Debug()
-                    pkgs.append(pkgFile.Serialize())
-
+                    res, code, message = pkgFile.Serialize()
+                    pkgs.append(res)
             else:
                 code = -1
                 message = self.directory + ' is not a directory or does not exist'
@@ -180,7 +187,6 @@ class IniCtrl():
             for key, value in self.values.items():
                 sub = etree.SubElement(root, key)
                 sub.text = value
-                print 'key', key, 'value', value
 
             fd = open(self.inifile, 'w')
             
@@ -197,18 +203,37 @@ class IniCtrl():
         return '', code, message
         
 
-class MessageCtrl():
-    def __init__(self, logFile = '', ui = ''):
-        self.logFile = logFile
-        self.ui = ui
+#class MessageCtrl():
+    #def __init__(self, logFile = '', ui = 'stdout'):
+        #self.logFile = logFile
+        #self.ui = ui
 
-    def SetUI(self, ui):
-        self.ui = ui
+    #def SetUI(self, ui):
+        #self.ui = ui
+
+    #def DPrint(self, code, message):
+        #SCSI = "\x1B["
+        #ECSI = SCSI + "m"
+        #redColor = SCSI + "31;40m"
         
-    def ManageMessage(self, code, message):
-        if message != '':
-            if self.ui != '':
-                if self.ui == 'stdout':
-                    print 'code', code, 'message', message
-                else:
-                    self.ui.Print(code, message)
+        ##reset=CSI+"m"
+        ##print CSI+"31;40m" + "Colored Text" + CSI + "0m"
+
+        
+        #print redColor + 'Debug (' + code + '): ' + message + ECSI
+        
+    #def DPrint(self, code, message):
+        #if code == 0:
+            #if message != '':
+                #print 'Debug : ' + message
+        #elif code == -1:
+            #print 'Debug (' + code + '): ' + message
+            
+        #print 'Debug (' + code + '): ' + message
+        
+    #def Print(self, code, message):
+        #if message != '':
+            #if self.ui == 'stdout':
+                #print 'code', code, 'message', message
+            #else:
+                #self.ui.Print(code, message)
