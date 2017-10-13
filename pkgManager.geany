@@ -28,18 +28,7 @@ long_line_behaviour=1
 long_line_column=72
 
 [files]
-current_page=9
-FILE_NAME_0=5051;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CAPICtrl.py;0;4
-FILE_NAME_1=0;None;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CLICENSE;0;4
-FILE_NAME_2=423;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5Cmain.py;0;4
-FILE_NAME_3=1397;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CMessageTools.py;0;4
-FILE_NAME_4=0;None;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CNoPayStation.xlsx_-_Organized_-_GAMES.csv;0;4
-FILE_NAME_5=161;Conf;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CpkgManager.ini;0;4
-FILE_NAME_6=3327;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CpkgManagerCtrl.py;0;4
-FILE_NAME_7=1261;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CpkgManagerDM.py;0;4
-FILE_NAME_8=0;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CpkgManagerTools.py;0;4
-FILE_NAME_9=4646;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CpkgManagerUI.py;0;4
-FILE_NAME_10=84;Markdown;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CREADME.md;0;4
+current_page=0
 
 [build-menu]
 EX_00_LB=_Execute

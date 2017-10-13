@@ -60,13 +60,26 @@ class PkgCtrl(DataCtrl):
 
         API.Subscribe('GetLocalPkgsData', lambda args: self.GetLocalPkgsData(*args))
         API.Subscribe('GetPkgDirectory', lambda args: self.GetDirectory(*args))
+        API.Subscribe('SetPkgDirectory', lambda args: self.SetDirectory(*args))
         API.Subscribe('GetDownloadFile', lambda args: self.GetDownloadFile(*args))
+        API.Subscribe('SetDownloadFile', lambda args: self.SetDownloadFile(*args))
 
     def GetDirectory(self, *args):
         return self.directory, 0, ''
         
+    def SetDirectory(self, *args):
+        print 'SetDirectory', args
+        self.directory = args[0]
+        
+        return '', 0, ''
+        
     def GetDownloadFile(self, *args):
         return self.downloadFile, 0, ''
+    
+    def SetDownloadFile(self, *args):
+        self.downloadFile = args[0]
+        
+        return '', 0, ''
 
     def GetLocalPkgsData(self, *args):
         pkgs = []
@@ -97,6 +110,7 @@ class VitaCtrl():
         self.directory = directory
 
         API.Subscribe('GetVitaDirectory', lambda args: self.GetDirectory(args))
+        API.Subscribe('SetVitaDirectory', lambda args: self.SetDirectory(args))
         API.Subscribe('GetLocalVitaData', lambda args: self.GetLocalVitaData(args))
         
     #def SetDirectory(self,directory):
@@ -104,6 +118,11 @@ class VitaCtrl():
 
     def GetDirectory(self, *args):
         return self.directory, 0, ''
+        
+    def SetDirectory(self, *args):
+        self.directory = args[0]
+        
+        return '', 0, ''
 
     def GetLocalVitaData(self, *args):
         vitaApps = []

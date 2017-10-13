@@ -126,50 +126,65 @@ class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin):
 
             self.AppendColumn(displayName)
 
+        self.sizerFlags = wx.SizerFlags(1)
+        self.sizerFlags.Expand()
+        
     def RemoveValues(self):
         self.DeleteAllItems()
         
     def AddEntry(self, entry):
         self.Append(entry)
+        
+    def GetSizerFlags(self):
+        return self.sizerFlags
 
 class UIToolbarButton(wx.BitmapButton):
     def __init__(self, parent, command, image, tooltip):
         buttonImage = wx.Image(name = image)
         buttonBitmap =  buttonImage.ConvertToBitmap()
         
-        wx.BitmapButton.__init__(self, parent, id = ID_BUTTON_REFRESH_PKG, bitmap = buttonBitmap)
+        wx.BitmapButton.__init__(self, parent, bitmap = buttonBitmap)
 
         self.Bind(wx.EVT_BUTTON, command)
         self.SetToolTip(tooltip)
+        
+class UIToolBar(wx.BoxSizer):
+    def __init__(self, parent, description):
+        wx.BoxSizer.__init__(self, orient = wx.HORIZONTAL)
+        
+        buttonFlags = wx.SizerFlags(0)
+        for buttonData in description:
+            command = buttonData['command']
+            image = buttonData['image']
+            tooltip = buttonData['tooltip']
+            
+            tbButton = UIToolbarButton(parent, command, image, tooltip)
+            self.Add(tbButton, buttonFlags)
+            
+        self.sizerFlags = wx.SizerFlags(0)
+        
+    def GetSizerFlags(self):
+        return self.sizerFlags
 
 class PkgFilesView(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
         
         ## create the toolbar toolbar
-        self.refreshButton = UIToolbarButton(self, self.FillValues, 'resources/view-refresh.png', 'Refresh local Pkgs information')
-        self.clearButton = UIToolbarButton(self, self.ClearValues, 'resources/edit-clear.png', 'Clear local Pkgs information')
+        description = [ \
+            {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local Pkgs information'}, \
+            {'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'} \
+            ]
 
-        # toolbar sizer
-        buttonFlags = wx.SizerFlags(0)
-        #buttonFlags.Expand()
-        toolbarFlags = wx.SizerFlags(0)
-        toolbarFlags.Expand()
-        toolbarSizer = wx.BoxSizer(wx.HORIZONTAL)
-        toolbarSizer.Add(self.refreshButton, buttonFlags)
-        toolbarSizer.Add(self.clearButton, buttonFlags)
-        
+        self.toolbar = UIToolBar(self, description)
+                
         ## create the tree view
         self.listCtrl = UIListCtrl(self, 'PkgFile')
-
+        
         ## main sizer
         mainSizer = wx.BoxSizer(wx.VERTICAL)
-        mainSizer.Add(toolbarSizer, toolbarFlags)
-        mainSizer.Add(
-                self.listCtrl,
-                1,           # make vertically stretchable
-                wx.EXPAND |  wx.ALL, # make horizontally stretchable and make border all around
-                0)
+        mainSizer.Add(self.toolbar, self.toolbar.GetSizerFlags())
+        mainSizer.Add(self.listCtrl, self.listCtrl.GetSizerFlags())
 
         self.SetSizerAndFit(mainSizer)
 
@@ -188,17 +203,25 @@ class VitaFilesView(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
 
+        ## create the toolbar toolbar
+        description = [ \
+            {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local Pkgs information'}, \
+            {'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'} \
+            ]
+
+        self.toolbar = UIToolBar(self, description)
+        
+        ## create the tree view
         self.listCtrl = UIListCtrl(self, 'VitaFile')
 
         mainSizer = wx.BoxSizer(wx.VERTICAL)
-        mainSizer.Add(
-                self.listCtrl,
-                1,           # make vertically stretchable
-                wx.EXPAND |  wx.ALL, # make horizontally stretchable and make border all around
-                0)
+        mainSizer.Add(self.toolbar, self.toolbar.GetSizerFlags())
+        mainSizer.Add(self.listCtrl, self.listCtrl.GetSizerFlags())
 
         self.SetSizerAndFit(mainSizer)
-
+    def ClearValues(self, event = ''):
+        self.listCtrl.RemoveValues()
+        
     def FillValues(self):
         vitaData = API.Send('GetLocalVitaData')
         
@@ -211,8 +234,11 @@ class SettingsView(wx.Panel):
         
         ## file/directory browsers definition and sizer
         self.pkgDirectory = wx.DirPickerCtrl(self, style = wx.DIRP_DEFAULT_STYLE|wx.DIRP_DIR_MUST_EXIST, message = 'Select the Pkg Directory')
+        self.pkgDirectory.Bind(wx.EVT_DIRPICKER_CHANGED, self.OnSetPkgDir)
         self.vitaDirectory = wx.DirPickerCtrl(self, style = wx.DIRP_DEFAULT_STYLE|wx.DIRP_DIR_MUST_EXIST, message = 'Select the vita Directory')
+        self.vitaDirectory.Bind(wx.EVT_DIRPICKER_CHANGED, self.OnSetVitaDir)
         self.pkgDownloadFile = wx.FilePickerCtrl(self, message = 'Select the download Pkg File')
+        self.pkgDownloadFile.Bind(wx.EVT_FILEPICKER_CHANGED, self.OnSetDownloadFile)
 
         text1 = wx.StaticText(self, label = 'Pkg Directory') 
         text2 = wx.StaticText(self, label = 'Vita Directory') 
@@ -276,17 +302,32 @@ class SettingsView(wx.Panel):
         
     def OnSaveIni(self, event):
         ## set the new values
-        pkgDirectory = self.pkgDirectory.GetPath()
-        API.Send('SetIniValue', 'pkgDirectory', pkgDirectory)
+        #~ pkgDirectory = self.pkgDirectory.GetPath()
+        #~ API.Send('SetIniValue', 'pkgDirectory', pkgDirectory)
         
-        pkgDownloadFile = self.pkgDownloadFile.GetPath()
-        API.Send('SetIniValue', 'pkgDownloadFile', pkgDownloadFile)
+        #~ pkgDownloadFile = self.pkgDownloadFile.GetPath()
+        #~ API.Send('SetIniValue', 'pkgDownloadFile', pkgDownloadFile)
         
-        vitaDirectory = self.vitaDirectory.GetPath()
-        API.Send('SetIniValue', 'vitaDirectory', vitaDirectory)
+        #~ vitaDirectory = self.vitaDirectory.GetPath()
+        #~ API.Send('SetIniValue', 'vitaDirectory', vitaDirectory)
         
         ## serialize the ini values
         API.Send('SerializeIni')
 
     def OnReset(self, event):
         self.InitValues()
+        
+    def OnSetPkgDir(self, event):
+        pkgDirectory = self.pkgDirectory.GetPath()
+        API.Send('SetPkgDirectory', pkgDirectory)
+        API.Send('SetIniValue', 'pkgDirectory', pkgDirectory)
+        
+    def OnSetVitaDir(self, event):
+        vitaDirectory = self.vitaDirectory.GetPath()
+        API.Send('SetVitaDirectory', vitaDirectory)
+        API.Send('SetIniValue', 'vitaDirectory', vitaDirectory)
+        
+    def OnSetDownloadFile(self, event):
+        pkgDownloadFile = self.pkgDownloadFile.GetPath()
+        API.Send('SetDownloadFile', pkgDownloadFile)
+        API.Send('SetIniValue', 'pkgDownloadFile', pkgDownloadFile)
