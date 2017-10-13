@@ -19,6 +19,7 @@ ID_MENU_DOWNLOAD_ALL = wx.NewId()
 
 ID_BUTTON_SAVE_INI = wx.NewId()
 ID_BUTTON_RESET_INI = wx.NewId()
+ID_BUTTON_REFRESH_PKG = wx.NewId()
 
 #SendMessage, EVT_SEND_MESSAGE = wx.lib.newevent.NewEvent()
 
@@ -65,9 +66,9 @@ class UI(wx.Frame):
 
         self.notebook = wx.Notebook(self)
 
-        self.panelPkg = PkgFiles(self.notebook)
-        self.panelVita = VitaFiles(self.notebook)
-        self.panelSettings = AppSettings(self.notebook)
+        self.panelPkg = PkgFilesView(self.notebook)
+        self.panelVita = VitaFilesView(self.notebook)
+        self.panelSettings = SettingsView(self.notebook)
 
         self.notebook.AddPage(self.panelPkg, "Pkg Files")
         self.notebook.AddPage(self.panelVita, "Vita Files")
@@ -78,7 +79,9 @@ class UI(wx.Frame):
         self.Show(True)
 
     def Start(self):
-        self.InitValues()
+        self.panelPkg.FillValues()
+        self.panelVita.FillValues()
+        self.panelSettings.FillValues()
         
         self.app.MainLoop()
         
@@ -86,10 +89,6 @@ class UI(wx.Frame):
         API.Stop()
         self.Destroy()
 
-    def InitValues(self):
-        self.panelPkg.InitValues()
-        self.panelSettings.InitValues()
-        
     def OnAbout(self, event):
         # A message dialog box with an OK button. wx.OK is a standard ID in wxWidgets.
         dlg = wx.MessageDialog( self, "Pkg Manager 0.1", "About Pkg Manager", wx.OK)
@@ -111,7 +110,7 @@ class UI(wx.Frame):
         
         self.statusBar.SetStatusText(message, 0) 
 
-class UIView(wx.ListCtrl, ListCtrlAutoWidthMixin):
+class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin):
     def __init__(self, parent, className):
         wx.ListCtrl.__init__(self, parent, size=(-1, -1), style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
 
@@ -126,25 +125,46 @@ class UIView(wx.ListCtrl, ListCtrlAutoWidthMixin):
                 displayName = attribute['name']
 
             self.AppendColumn(displayName)
-            
+
+    def RemoveValues(self):
+        self.DeleteAllItems()
+        
     def AddEntry(self, entry):
         self.Append(entry)
 
-class PkgView(UIView):
-    def __init__(self, parent):
-        UIView.__init__(self, parent, 'PkgFile')
-
-class VitaView(UIView):
-    def __init__(self, parent):
-        UIView.__init__(self, parent, 'VitaFile')
+class UIToolbarButton(wx.BitmapButton):
+    def __init__(self, parent, command, image, tooltip):
+        buttonImage = wx.Image(name = image)
+        buttonBitmap =  buttonImage.ConvertToBitmap()
         
-class PkgFiles(wx.Panel):
+        wx.BitmapButton.__init__(self, parent, id = ID_BUTTON_REFRESH_PKG, bitmap = buttonBitmap)
+
+        self.Bind(wx.EVT_BUTTON, command)
+        self.SetToolTip(tooltip)
+
+class PkgFilesView(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
         
-        self.listCtrl = PkgView(self)
+        ## create the toolbar toolbar
+        self.refreshButton = UIToolbarButton(self, self.FillValues, 'resources/view-refresh.png', 'Refresh local Pkgs information')
+        self.clearButton = UIToolbarButton(self, self.ClearValues, 'resources/edit-clear.png', 'Clear local Pkgs information')
 
+        # toolbar sizer
+        buttonFlags = wx.SizerFlags(0)
+        #buttonFlags.Expand()
+        toolbarFlags = wx.SizerFlags(0)
+        toolbarFlags.Expand()
+        toolbarSizer = wx.BoxSizer(wx.HORIZONTAL)
+        toolbarSizer.Add(self.refreshButton, buttonFlags)
+        toolbarSizer.Add(self.clearButton, buttonFlags)
+        
+        ## create the tree view
+        self.listCtrl = UIListCtrl(self, 'PkgFile')
+
+        ## main sizer
         mainSizer = wx.BoxSizer(wx.VERTICAL)
+        mainSizer.Add(toolbarSizer, toolbarFlags)
         mainSizer.Add(
                 self.listCtrl,
                 1,           # make vertically stretchable
@@ -153,17 +173,22 @@ class PkgFiles(wx.Panel):
 
         self.SetSizerAndFit(mainSizer)
 
-    def InitValues(self):
+    def ClearValues(self, event = ''):
+        self.listCtrl.RemoveValues()
+        
+    def FillValues(self, event = ''):
+        self.ClearValues()
+        
         pkgsData = API.Send('GetLocalPkgsData')
         
         for pkgData in pkgsData:
             self.listCtrl.AddEntry(pkgData)
         
-class VitaFiles(wx.Panel):
+class VitaFilesView(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
 
-        self.listCtrl = VitaView(self)
+        self.listCtrl = UIListCtrl(self, 'VitaFile')
 
         mainSizer = wx.BoxSizer(wx.VERTICAL)
         mainSizer.Add(
@@ -173,8 +198,14 @@ class VitaFiles(wx.Panel):
                 0)
 
         self.SetSizerAndFit(mainSizer)
+
+    def FillValues(self):
+        vitaData = API.Send('GetLocalVitaData')
         
-class AppSettings(wx.Panel):
+        for data in vitaData:
+            self.listCtrl.AddEntry(data)
+        
+class SettingsView(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
         
@@ -192,10 +223,12 @@ class AppSettings(wx.Panel):
         textFlags.Border(wx.ALL, 3)
         
         browserFlags = wx.SizerFlags(1)
-        browserFlags.Align(wx.ALIGN_RIGHT).Expand().Border(wx.ALL, 0)
+        #browserFlags.Align(wx.ALIGN_RIGHT).Expand().Border(wx.ALL, 0)
+        browserFlags.Align(wx.ALIGN_RIGHT).Expand()
         
         mixFlags = wx.SizerFlags(0)
-        mixFlags.Expand().Border(wx.ALL, 0)
+        #mixFlags.Expand().Border(wx.ALL, 0)
+        mixFlags.Expand()
 
         pkgDirectorySizer = wx.BoxSizer(wx.HORIZONTAL)
         pkgDirectorySizer.Add(text1, textFlags)
@@ -229,7 +262,7 @@ class AppSettings(wx.Panel):
 
         self.SetSizerAndFit(mainSizer)
         
-    def InitValues(self):
+    def FillValues(self):
         global ui
 
         pkgDirectory = API.Send('GetPkgDirectory')

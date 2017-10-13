@@ -22,8 +22,6 @@ controllers = Controllers('pkgManager.ini')
 
 ## start the ui
 ui = UI()
-print 'ui 0', ui
-#MessageTools.SetUI(ui)
 ui.Start()
 
 
