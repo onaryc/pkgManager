@@ -49,20 +49,32 @@ class FWObject(object):
 
         return '', 0, ''
 
+    #def Serialize(self):
+        #res = []
+
+        #cls = self.__class__
+        #varsData = cls.GetClassVarsData()
+        #for varData in varsData:
+            #varName = varData['name']
+            #value, code, message = self.Get(varName)
+            #res.append(value)
+            
+        #return res, 0, ''
     def Serialize(self):
-        res = []
+        res = {}
 
         cls = self.__class__
         varsData = cls.GetClassVarsData()
         for varData in varsData:
             varName = varData['name']
             value, code, message = self.Get(varName)
-            res.append(value)
+            res[varName] = value
             
         return res, 0, ''
 
 class PkgFile(FWObject):
-    # type = game, update or DLC
+    ## type = game, update or DLC
+    ## color :  0x00BBGGRR
     instanceVariables = [\
         {'name': 'titleID', 'display': 'Title ID','default': ''}, \
         {'name': 'titleType', 'display': 'Type','default': ''}, \
@@ -73,6 +85,7 @@ class PkgFile(FWObject):
         {'name': 'fileSize', 'display': 'Size','default': 0}, \
         {'name': 'downloadURL', 'display': 'URL','default': ''}, \
         {'name': 'zRIF', 'display': 'zRIF','default': ''}, \
+        {'name': 'validity', 'default': ''}, \
         ]
         
     def __init__(self, **kwargs):

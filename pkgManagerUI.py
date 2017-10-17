@@ -5,7 +5,7 @@ try:
 
     ## wx python module
     import wx
-    from wx.lib.mixins.listctrl import ColumnSorterMixin, ListCtrlAutoWidthMixin
+    from wx.lib.mixins.listctrl import ColumnSorterMixin, ListCtrlAutoWidthMixin, CheckListCtrlMixin
     import wx.lib.newevent
     
     import APICtrl as API
@@ -36,8 +36,8 @@ class UI(wx.Frame):
         menuExit = fileMenu.Append(wx.ID_EXIT,"E&xit"," Close Pkg Manager")
 
         ## edit menu
-        editMenu = wx.Menu()
-        menuConfiguration = editMenu.Append(ID_MENU_SETTINGS,"Settings"," Settings")
+        #editMenu = wx.Menu()
+        #menuConfiguration = editMenu.Append(ID_MENU_SETTINGS,"Settings"," Settings")
 
         ## tools menu
         toolsMenu = wx.Menu()
@@ -54,7 +54,7 @@ class UI(wx.Frame):
         ## adding menu to the menu bar
         menuBar.Append(fileMenu,"&File")
         menuBar.Append(toolsMenu,"&Tools")
-        menuBar.Append(editMenu,"&Edit")
+        #menuBar.Append(editMenu,"&Edit")
         menuBar.Append(otherMenu,"&?")
         self.SetMenuBar(menuBar)  # Adding the MenuBar to the Frame content.
 
@@ -73,10 +73,14 @@ class UI(wx.Frame):
         self.notebook.AddPage(self.panelPkg, "Pkg Files")
         self.notebook.AddPage(self.panelVita, "Vita Files")
         self.notebook.AddPage(self.panelSettings, "Settings")
-
+        
         API.Subscribe('SendUIMessage', lambda args: self.SendUIMessage(*args))
         
         self.Show(True)
+
+        ## a disgraceful black background color is displayed on panel toolbar, it disapears when panel are selected
+        self.notebook.ChangeSelection(1)
+        self.notebook.ChangeSelection(0)
 
     def Start(self):
         self.panelPkg.FillValues()
@@ -110,33 +114,139 @@ class UI(wx.Frame):
         
         self.statusBar.SetStatusText(message, 0) 
 
-class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin):
+class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin):
     def __init__(self, parent, className):
-        wx.ListCtrl.__init__(self, parent, size=(-1, -1), style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
+        #wx.ListCtrl.__init__(self, parent, size=(-1, -1), style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
+        wx.ListCtrl.__init__(self, parent, size=(-1, -1), style=wx.LC_REPORT)
 
         ListCtrlAutoWidthMixin.__init__(self)
+        CheckListCtrlMixin.__init__(self)
+        #self.EnableAlternateRowColours(True)
+        #self.AppendColumn('')
 
+        self.mapAttributesCol = {}
+        self.mapColAttributes = {}
         ## add the column based on the data model attributes
         attributes = API.Send('GetModelAttributes', className)
         for attribute in attributes:
             if 'display' in attribute:
                 displayName = attribute['display']
-            else:
-                displayName = attribute['name']
+            #else:
+                #displayName = attribute['name']
 
-            self.AppendColumn(displayName)
+                colIndex = self.AppendColumn(displayName)                
+                self.mapAttributesCol[attribute['name']] = colIndex
+                self.mapColAttributes[colIndex] = attribute['name']
 
         self.sizerFlags = wx.SizerFlags(1)
         self.sizerFlags.Expand()
+
+        self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.OnShowPopup)
+
+        self.ID_CONTEXTUAL_CHECKED = wx.NewId()
+        self.ID_CONTEXTUAL_UNCHECKED = wx.NewId()
+        
         
     def RemoveValues(self):
         self.DeleteAllItems()
         
     def AddEntry(self, entry):
-        self.Append(entry)
+        ## get the text in col order
+        tmp = []
+        for i in range(self.GetColumnCount()):
+            name = self.mapColAttributes[i]
+            tmp.append(entry[name])
+
+        rowIndex = self.Append(tmp)
+
+        if 'validity' in entry:
+            validity = entry['validity']
+
+            if validity == 'local':
+                color = wx.Colour('green')
+            elif validity == 'localError':
+                color = wx.Colour('red')
+            elif validity == 'distant':
+                color = wx.Colour('yellow')
+            else:
+                color = wx.Colour('white')
+    
+            ## alternate color
+            if rowIndex % 2:
+                color.MakeDisabled(200)
+            else:
+                color.MakeDisabled(255)
+                
+            self.SetItemBackgroundColour(rowIndex, color)
+
+
+    def __getSelectedEntries(self, entry, entries = []):
+        res = entries
+
+        
+    def GetSelectedEntries(self):
+        res = []
+
+        # start at -1 to get the first selected item
+        currentId = -1
+        while True:
+            nextId = self.GetNextSelected(currentId)
+            if nextId == -1:
+                break
+
+            res.append(nextId)
+            currentId = nextId
+
+        return res
+        
+    def GetCheckEntries(self):
+        res = []
+
+        num = self.GetItemCount()
+        for i in range(num):
+            if self.IsChecked(i):
+                #self.log.AppendText(self.list.GetItemText(i) + '\n')
+                res.append(i)
+
+        return res
+
+    def GetEntryText(self, entry, colId):
+        if colId in self.mapAttributesCol:
+            col = self.mapAttributesCol[colId]
+        else:
+            col = 0
+            
+        return self.GetItemText(entry,col)
         
     def GetSizerFlags(self):
         return self.sizerFlags
+
+    def OnShowPopup(self, event):
+        self.popupmenu = wx.Menu()
+        #for text in "Add Delete Edit".split():
+        item = self.popupmenu.Append(self.ID_CONTEXTUAL_CHECKED, 'Checked')
+        self.Bind(wx.EVT_MENU, self.OnSelectPop, item)
+
+        item = self.popupmenu.Append(self.ID_CONTEXTUAL_UNCHECKED, 'Unchecked')
+        self.Bind(wx.EVT_MENU, self.OnSelectPop, item)
+
+        self.PopupMenu(self.popupmenu, event.GetPoint())
+        self.popupmenu.Destroy()
+
+    def OnSelectPop(self, event):
+        checked = True
+        itemId = event.GetId()
+        if itemId == self.ID_CONTEXTUAL_CHECKED: # checked the selection
+            checked = True
+        elif itemId == self.ID_CONTEXTUAL_UNCHECKED: # uncheck the selection
+            checked = False
+        else:
+            return
+        #item = self.popupmenu.FindItemById(itemId)
+        #text = item.GetText()
+        selectedEntries = self.GetSelectedEntries()
+        for selectedEntry in selectedEntries:
+            self.CheckItem(selectedEntry, checked)
 
 class UIToolbarButton(wx.BitmapButton):
     def __init__(self, parent, command, image, tooltip):
@@ -173,7 +283,9 @@ class PkgFilesView(wx.Panel):
         ## create the toolbar toolbar
         description = [ \
             {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local Pkgs information'}, \
-            {'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'} \
+            {'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'}, \
+            {'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Rename selected Pkg files'}, \
+            {'command': self.DownloadPkg, 'image': 'resources/network-receive.png', 'tooltip': 'Download selected Pkg files'} \
             ]
 
         self.toolbar = UIToolBar(self, description)
@@ -188,16 +300,32 @@ class PkgFilesView(wx.Panel):
 
         self.SetSizerAndFit(mainSizer)
 
+    def Rename(self, event = ''):
+        checkedEntries = self.listCtrl.GetCheckEntries()
+        for checkedEntry in checkedEntries:
+            filename = self.listCtrl.GetEntryText(checkedEntry, 'filename')
+            API.Send('RenamePkgFile', filename)
+        
+        
     def ClearValues(self, event = ''):
         self.listCtrl.RemoveValues()
         
     def FillValues(self, event = ''):
         self.ClearValues()
         
-        pkgsData = API.Send('GetLocalPkgsData')
-        
-        for pkgData in pkgsData:
+        API.Send('RefreshPkgsData')
+        pkgsData = API.Send('GetPkgsData')
+
+        for pkgData in pkgsData:                
             self.listCtrl.AddEntry(pkgData)
+
+    def DownloadPkg(self, event = ''):
+        checkedEntries = self.listCtrl.GetCheckEntries()
+        for checkedEntry in checkedEntries:
+            filename = self.listCtrl.GetEntryText(checkedEntry, 'filename')
+            downloadURL = self.listCtrl.GetEntryText(checkedEntry, 'downloadURL')
+            if downloadURL != "":
+                API.Send('DownloadPkg', downloadURL, filename)
         
 class VitaFilesView(wx.Panel):
     def __init__(self, parent):
@@ -272,8 +400,8 @@ class SettingsView(wx.Panel):
         self.saveButton = wx.Button(self, id = ID_BUTTON_SAVE_INI, label='Save Ini')
         self.saveButton.Bind(wx.EVT_BUTTON, self.OnSaveIni)
 
-        self.resetButton = wx.Button(self, id = ID_BUTTON_RESET_INI, label='Reset Values')
-        self.resetButton.Bind(wx.EVT_BUTTON, self.OnReset)
+        self.resetButton = wx.Button(self, id = ID_BUTTON_RESET_INI, label='Reset Ini Values')
+        self.resetButton.Bind(wx.EVT_BUTTON, self.OnResetIni)
 
         buttonSizer = wx.BoxSizer(wx.HORIZONTAL)
         buttonSizer.Add(self.saveButton, 0, wx.ALL, 5)
@@ -289,8 +417,6 @@ class SettingsView(wx.Panel):
         self.SetSizerAndFit(mainSizer)
         
     def FillValues(self):
-        global ui
-
         pkgDirectory = API.Send('GetPkgDirectory')
         self.pkgDirectory.SetPath(pkgDirectory)
 
@@ -300,34 +426,44 @@ class SettingsView(wx.Panel):
         downloadFile = API.Send('GetDownloadFile')
         self.pkgDownloadFile.SetPath(downloadFile)
         
+    def OnResetIni(self, event):
+        pkgDirectory = API.Send('GetIniValue', 'pkgDirectory')
+        self.pkgDirectory.SetPath(pkgDirectory)
+
+        vitaDirectory = API.Send('GetIniValue', 'vitaDirectory')
+        self.vitaDirectory.SetPath(vitaDirectory)
+
+        downloadFile = API.Send('GetIniValue', 'pkgDownloadFile')
+        self.pkgDownloadFile.SetPath(downloadFile)
+        
     def OnSaveIni(self, event):
         ## set the new values
-        #~ pkgDirectory = self.pkgDirectory.GetPath()
-        #~ API.Send('SetIniValue', 'pkgDirectory', pkgDirectory)
+        pkgDirectory = self.pkgDirectory.GetPath()
+        API.Send('SetIniValue', 'pkgDirectory', pkgDirectory)
         
-        #~ pkgDownloadFile = self.pkgDownloadFile.GetPath()
-        #~ API.Send('SetIniValue', 'pkgDownloadFile', pkgDownloadFile)
+        pkgDownloadFile = self.pkgDownloadFile.GetPath()
+        API.Send('SetIniValue', 'pkgDownloadFile', pkgDownloadFile)
         
-        #~ vitaDirectory = self.vitaDirectory.GetPath()
-        #~ API.Send('SetIniValue', 'vitaDirectory', vitaDirectory)
+        vitaDirectory = self.vitaDirectory.GetPath()
+        API.Send('SetIniValue', 'vitaDirectory', vitaDirectory)
         
         ## serialize the ini values
         API.Send('SerializeIni')
 
     def OnReset(self, event):
-        self.InitValues()
+        self.FillIniValues()
         
     def OnSetPkgDir(self, event):
         pkgDirectory = self.pkgDirectory.GetPath()
         API.Send('SetPkgDirectory', pkgDirectory)
-        API.Send('SetIniValue', 'pkgDirectory', pkgDirectory)
+        #API.Send('SetIniValue', 'pkgDirectory', pkgDirectory)
         
     def OnSetVitaDir(self, event):
         vitaDirectory = self.vitaDirectory.GetPath()
         API.Send('SetVitaDirectory', vitaDirectory)
-        API.Send('SetIniValue', 'vitaDirectory', vitaDirectory)
+        #API.Send('SetIniValue', 'vitaDirectory', vitaDirectory)
         
     def OnSetDownloadFile(self, event):
         pkgDownloadFile = self.pkgDownloadFile.GetPath()
         API.Send('SetDownloadFile', pkgDownloadFile)
-        API.Send('SetIniValue', 'pkgDownloadFile', pkgDownloadFile)
+        #API.Send('SetIniValue', 'pkgDownloadFile', pkgDownloadFile)

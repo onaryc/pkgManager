@@ -7,3 +7,4 @@
  * wxPython
  * lxml
  * colorama
+ * wget 

@@ -1,12 +1,16 @@
 #!/usr/bin/env python2
 
 try:
-    from os.path import exists, isdir, isfile
-
+    import os
+    from os.path import exists, isdir, isfile, join
+    import wget
+    import urllib
+    
     from lxml import etree
     
     import APICtrl as API
-    import pkgManagerTools
+    import FWTools
+    import pkgTools
     from pkgManagerDM import PkgFile, VitaFile
     from MessageTools import Print, DPrint, ManageMessage 
 except ImportError:
@@ -57,10 +61,20 @@ class PkgCtrl(DataCtrl):
         
         self.directory = directory
         self.downloadFile = downloadFile
+        self.pkgs = []
+        #self.renamePkg = 'bin\\renamePkg.exe'
+        self.renamePkg = 'renamePkg.exe'
+ 
+        API.Subscribe('RefreshPkgsData', lambda args: self.RefreshPkgsData(*args))
+        API.Subscribe('GetPkgsData', lambda args: self.GetPkgsData(*args))
 
-        API.Subscribe('GetLocalPkgsData', lambda args: self.GetLocalPkgsData(*args))
+        API.Subscribe('RenamePkgFile', lambda args: self.RenamePkgFile(*args))
+        
+        API.Subscribe('DownloadPkg', lambda args: self.DownloadPkg(*args))
+        
         API.Subscribe('GetPkgDirectory', lambda args: self.GetDirectory(*args))
         API.Subscribe('SetPkgDirectory', lambda args: self.SetDirectory(*args))
+
         API.Subscribe('GetDownloadFile', lambda args: self.GetDownloadFile(*args))
         API.Subscribe('SetDownloadFile', lambda args: self.SetDownloadFile(*args))
 
@@ -68,10 +82,19 @@ class PkgCtrl(DataCtrl):
         return self.directory, 0, ''
         
     def SetDirectory(self, *args):
-        print 'SetDirectory', args
-        self.directory = args[0]
+        res = ''
         
-        return '', 0, ''
+        #if (args[0] != None) or (args[0] != ''):
+            #if (exists(args[0]) == True) and (isdir(args[0]) == True):
+        self.directory = args[0]
+            #else:
+                #code = -1
+                #message = args[0] + ' is not a directory or does not exist'
+        #else:
+            #code = -1
+            #message = args[0] + ' is not a directory or does not exist'
+            
+        return res, 0, ''
         
     def GetDownloadFile(self, *args):
         return self.downloadFile, 0, ''
@@ -81,20 +104,28 @@ class PkgCtrl(DataCtrl):
         
         return '', 0, ''
 
-    def GetLocalPkgsData(self, *args):
-        pkgs = []
+    def RefreshPkgsData(self, *args):
         code = 0
         message = ''
         
         ## test if the specified pkg directory is a directory and exists
         if (self.directory != None) or (self.directory != ''):
             if (exists(self.directory) == True) and (isdir(self.directory) == True):
-                pkgFiles = pkgManagerTools.listPkgFiles(self.directory)
+                self.pkgs = []
 
+                pkgFiles = FWTools.GetListFiles('.pkg', self.directory)
                 for pkgFile in pkgFiles:
-                    pkgFile = PkgFile(filename = pkgFile)
-                    res, code, message = pkgFile.Serialize()
-                    pkgs.append(res)
+                    ## gather all information for pkg
+                    size = FWTools.GetFileSize(join(self.directory, pkgFile))
+
+                    ## TODO : get the validity of the pkg : local, local and not a pkg, distant pkg (when nopaystation data will be integrated)
+                    validity = 'local'
+                    #validity = 'localError'
+                    #validity = 'distant'
+                    
+                    ## TODO : call to a sfo parser in pkg to get all needed info
+                    pkgFile = PkgFile(filename = pkgFile, fileSize = size, validity = validity, downloadURL = 'http://zeus.dl.playstation.net/cdn/EP0850/PCSB00779_00/EP0850-PCSB00779_00-AXIOMVERGE000000_bg_1_de788236d479ef1856369b4fc5870b918f2150f8.pkg')
+                    self.pkgs.append(pkgFile)
             else:
                 code = -1
                 message = self.directory + ' is not a directory or does not exist'
@@ -102,9 +133,109 @@ class PkgCtrl(DataCtrl):
             code = -1
             message = 'Pkg directory is empty'
             
-        return pkgs, code, message
-        #~ return pkgs, 'list', code, message
+        return '', code, message
 
+    def GetPkgsData(self, *args):
+        pkgData = []
+        code = 0
+        message = ''
+
+        for pkg in self.pkgs:
+            res, code, message = pkg.Serialize()
+            pkgData.append(res)
+
+        return pkgData, code, message
+
+    def RenamePkgFile(self, *args):
+        res = ''
+        code = 0
+        message = ''
+        
+        if (self.directory != None) or (self.directory != ''):
+            if (exists(self.directory) == True) and (isdir(self.directory) == True):
+                pkgFile = args[0]
+                pkgFile = join(self.directory, pkgFile)
+
+                currentDir = os.getcwd()
+                os.chdir('./bin/')
+                #cmd = join(os.getcwd(), self.renamePkg)
+                cmd = self.renamePkg
+                renameCmd = [cmd]
+
+                renameCmd.append(pkgFile)
+                #print 'pwd', os.getcwd()
+                
+                try:
+                    subprocess.call(renameCmd)
+                except :
+                    code = -1
+                    message = 'Error in renamePkg execution ' + str(renameCmd)
+                    
+                os.chdir(currentDir) 
+            else:
+                code = -1
+                message = 'The pkg directory is not a directory or does not exist'
+        else:
+            code = -1
+            message = 'The pkg directory is empty'
+
+        return res, code, message
+
+    #def DownloadPkg(self, *args):
+        #res = ''
+        #code = 0
+        #message = ''
+        
+        #url = args[0]
+        #filename = args[1]
+
+        #if (self.directory != None) or (self.directory != ''):
+            #if (exists(self.directory) == True) and (isdir(self.directory) == True):
+                #try:
+                    #filename = join(self.directory, filename)
+                    #wget.download(url, filename)
+                #except Exception, e:
+                    #code = -1
+                    #message = 'Error in pkg download {0} ({1}): {1}'.format(url, e.errno, e.strerror)
+            #else:
+                #code = -1
+                #message = 'The pkg directory is not a directory or does not exist'
+        #else:
+            #code = -1
+            #message = 'The pkg directory is empty'
+            
+        #return res, code, message
+
+    def DownloadPkg(self, *args):
+        res = ''
+        code = 0
+        message = ''
+        
+        url = args[0]
+        filename = args[1]
+
+        if (self.directory != None) or (self.directory != ''):
+            if (exists(self.directory) == True) and (isdir(self.directory) == True):
+                try:
+                    filename = join(self.directory, filename)
+                    #wget.download(url, filename)
+                    downloadFile = urllib.URLopener()
+                    downloadFile.retrieve(url, filename, ProgressCallback)
+    
+                    #site = urllib.urlopen(url)
+                    #(file, headers) = urllib.urlretrieve(site, sys.argv[2], __progressCallback)
+                except Exception, e:
+                    code = -1
+                    message = 'Error in pkg download {0} : {1}'.format(url, e)
+            else:
+                code = -1
+                message = 'The pkg directory is not a directory or does not exist'
+        else:
+            code = -1
+            message = 'The pkg directory is empty'
+            
+        return res, code, message
+        
 class VitaCtrl():
     def __init__(self, directory):
         self.directory = directory
@@ -222,37 +353,11 @@ class IniCtrl():
         return '', code, message
         
 
-#class MessageCtrl():
-    #def __init__(self, logFile = '', ui = 'stdout'):
-        #self.logFile = logFile
-        #self.ui = ui
-
-    #def SetUI(self, ui):
-        #self.ui = ui
-
-    #def DPrint(self, code, message):
-        #SCSI = "\x1B["
-        #ECSI = SCSI + "m"
-        #redColor = SCSI + "31;40m"
-        
-        ##reset=CSI+"m"
-        ##print CSI+"31;40m" + "Colored Text" + CSI + "0m"
-
-        
-        #print redColor + 'Debug (' + code + '): ' + message + ECSI
-        
-    #def DPrint(self, code, message):
-        #if code == 0:
-            #if message != '':
-                #print 'Debug : ' + message
-        #elif code == -1:
-            #print 'Debug (' + code + '): ' + message
-            
-        #print 'Debug (' + code + '): ' + message
-        
-    #def Print(self, code, message):
-        #if message != '':
-            #if self.ui == 'stdout':
-                #print 'code', code, 'message', message
-            #else:
-                #self.ui.Print(code, message)
+def ProgressCallback(blocks, block_size, total_size):
+    #blocks->data downloaded so far (first argument of your callback)
+    #block_size -> size of each block
+    #total-size -> size of the file
+    #implement code to calculate the percentage downloaded e.g
+    #print 'blocks', blocks
+    #print 'total_size', total_size
+    print 'downloaded ', blocks/float(total_size), '%'

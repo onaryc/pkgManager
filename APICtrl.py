@@ -139,13 +139,19 @@ class Listen(Thread):
                 break
 
             DPrint('Api server recieving ' + resConnection)
-            
+
+            #print 'resConnection', resConnection
             ## decrypt the result : str to dict
             if resConnection != '':
-                res = ast.literal_eval(resConnection)
-                api = res['api']
-                args = res['args']
-                
+                try:
+                    res = ast.literal_eval(resConnection)
+                    api = res['api']
+                    args = res['args']
+                except:
+                    res = ''
+                    code = -1
+                    message = 'unable to decrypt the content'
+                    
                 ## test the existence of the api
                 if api in apis:
                     res, code, message = apis[api](args)
@@ -163,7 +169,10 @@ class Listen(Thread):
                     
             ## encrypt the result : dict to str
             res = {'res': res, 'code': code, 'message': message}
+            #print 'res', res
             resSize = len(str(res))
+
+            #print 'resSize', resSize
             
             ## send the header of the message : size for now
             DPrint('Api server send header ' + str(resSize))
