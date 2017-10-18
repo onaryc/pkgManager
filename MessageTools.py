@@ -5,8 +5,8 @@ try:
     
     #from blessings import Terminal
     from colorama import init, Fore, Back, Style
-except ImportError:
-    assert False, "import error in MessageTools"
+except ImportError, e:
+    assert False, 'import error in MessageTools : {0}'.format(e)
 
 init()
 

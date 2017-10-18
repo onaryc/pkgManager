@@ -10,8 +10,8 @@ try:
     
     import APICtrl as API
     from MessageTools import DPrint
-except ImportError:
-    assert False, "import error in pkgManagerUI"
+except ImportError, e:
+    assert False, 'import error in pkgManagerUI : {0}'.format(e)
 
 ID_MENU_SETTINGS = wx.NewId()
 ID_MENU_RENAME_ALL = wx.NewId()
@@ -250,10 +250,11 @@ class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin):
 
 class UIToolbarButton(wx.BitmapButton):
     def __init__(self, parent, command, image, tooltip):
-        buttonImage = wx.Image(name = image)
-        buttonBitmap =  buttonImage.ConvertToBitmap()
+        print 'image', image
+        self.buttonImage = wx.Image(name = image)
+        self.buttonBitmap =  self.buttonImage.ConvertToBitmap()
         
-        wx.BitmapButton.__init__(self, parent, bitmap = buttonBitmap)
+        wx.BitmapButton.__init__(self, parent, bitmap = self.buttonBitmap)
 
         self.Bind(wx.EVT_BUTTON, command)
         self.SetToolTip(tooltip)
@@ -281,11 +282,16 @@ class PkgFilesView(wx.Panel):
         wx.Panel.__init__(self, parent)
         
         ## create the toolbar toolbar
+        #~ description = [ \
+            #~ {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local Pkgs information'}, \
+            #~ {'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'}, \
+            #~ {'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Clear local Pkgs information'} \
+            #~ ]
         description = [ \
             {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local Pkgs information'}, \
             {'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'}, \
-            {'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Rename selected Pkg files'}, \
-            {'command': self.DownloadPkg, 'image': 'resources/network-receive.png', 'tooltip': 'Download selected Pkg files'} \
+            {'command': self.Rename, 'image': 'resources/edit-clear.png', 'tooltip': 'Rename selected Pkg files'}, \
+            {'command': self.DownloadPkg, 'image': 'resources/edit-clear.png', 'tooltip': 'Download selected Pkg files'} \
             ]
 
         self.toolbar = UIToolBar(self, description)
@@ -333,8 +339,8 @@ class VitaFilesView(wx.Panel):
 
         ## create the toolbar toolbar
         description = [ \
-            {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local Pkgs information'}, \
-            {'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'} \
+            {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local vita app information'}, \
+            {'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local vita app information'} \
             ]
 
         self.toolbar = UIToolBar(self, description)

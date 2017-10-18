@@ -3,7 +3,7 @@
 try:
     import os
     from os.path import exists, isdir, isfile, join
-    import wget
+    #~ import wget
     import urllib
     
     from lxml import etree
@@ -13,9 +13,9 @@ try:
     import pkgTools
     from pkgManagerDM import PkgFile, VitaFile
     from MessageTools import Print, DPrint, ManageMessage 
-except ImportError:
-    assert False, "import error in pkgManagerCtrl"
-
+except ImportError, e:
+    assert False, 'import error in pkgManagerCtrl : {0}'.format(e)
+    
 class Controllers():
     def __init__(self, iniFile):
         self.iniCtrl = IniCtrl(iniFile)

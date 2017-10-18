@@ -5,8 +5,8 @@ try:
     from pkgManagerUI import UI
     from pkgManagerCtrl import Controllers
     import MessageTools
-except ImportError:
-    assert False, "import error in main"
+except ImportError, e:
+    assert False, 'import error in main : {0}'.format(e)
 
 #~ host = 'localhost'
 host = '127.0.0.1'

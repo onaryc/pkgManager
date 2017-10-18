@@ -5,8 +5,8 @@ try:
     import socket
     from threading import Thread
     from MessageTools import Print, DPrint, ManageMessage
-except ImportError:
-    assert False, "import error in APICtrl"
+except ImportError, e:
+    assert False, 'import error in APICtrl : {0}'.format(e)
 
 sockServer = ''
 errorServer = False
