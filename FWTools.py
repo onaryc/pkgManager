@@ -8,7 +8,7 @@ try:
     from os.path import isfile, isdir, join, splitext, getsize, exists
 
     #~ import wget
-    from threading import Thread
+    import threading
     from Queue import Queue
 except ImportError, e:
     assert False, 'import error in FWTools : {0}'.format(e)
@@ -74,20 +74,42 @@ def ConvertBytes(number):
 
     return number
 
-class Downloader(Thread):
-    def __init__(self, urls):
+class FWThread(threading.Thread):
+    def __init__(self):
         Thread.__init__(self)
-        self.queue = Queue()
+        
+        ## for stop/resume operation
+        self.state = threading.Condition()
 
-        queue.put((url, filename))
+    def testPause(self):
+        with self.state:
+            if self.paused:
+                self.state.wait() # block until notified
+
+    def resume(self):
+        with self.state:
+            self.paused = False
+            self.state.notify()  # unblock self if waiting
+
+    def pause(self):
+        with self.state:
+            self.paused = True  # make self block and wait
+
+class Downloader(FWThread):
+    def __init__(self, queue):
+        FWThread.__init__(self)
+        self.queue = queue
 
     def run(self):
         while True:
-            download_url, save_as = queue.get()
+            ## for pause/resume operations
+            self.testPause()
+                    
+            downloadUrl, saveAs = queue.get()
             # sentinal
-            if not download_url:
+            if not downloadUrl:
                 return
             try:
-                urllib.urlretrieve(download_url, filename=save_as)
+                urllib.urlretrieve(downloadUrl, filename=saveAs)
             except Exception, e:
-                logging.warn("error downloading %s: %s" % (download_url, e))
+                DPrint('error downloading {0}: {1}'.format(downloadUrl, e), -1)

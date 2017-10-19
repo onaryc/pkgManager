@@ -5,6 +5,7 @@ try:
     from os.path import exists, isdir, isfile, join
     #~ import wget
     import urllib
+    from Queue import Queue
     
     from lxml import etree
     
@@ -57,7 +58,7 @@ class DataCtrl():
         return res, code, message
         
 class PkgCtrl(DataCtrl):
-    def __init__(self, directory, downloadFile):
+    def __init__(self, directory, downloadFile, nbDownloadQueues):
         DataCtrl.__init__(self)
         
         self.directory = directory
@@ -65,8 +66,12 @@ class PkgCtrl(DataCtrl):
         self.pkgs = []
         #self.renamePkg = 'bin\\renamePkg.exe'
         self.renamePkg = 'renamePkg.exe'
-        
+
+        self.nbDownloadQueues = nbDownloadQueues
         self.downloadQueues = []
+        for i in range(self.nbDownloadQueues):
+            dQueue = Queue()
+            self.downloadQueues.append(dQueue)
  
         API.Subscribe('RefreshPkgsData', lambda args: self.RefreshPkgsData(*args))
         API.Subscribe('GetPkgsData', lambda args: self.GetPkgsData(*args))
