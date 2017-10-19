@@ -7,11 +7,11 @@ try:
     from os import listdir
     from os.path import isfile, isdir, join, splitext, getsize, exists
 
-    import wget
+    #~ import wget
     from threading import Thread
     from Queue import Queue
-except ImportError:
-    assert False, "import error in FWTools"
+except ImportError, e:
+    assert False, 'import error in FWTools : {0}'.format(e)
     
 def GetListFiles(ext, baseDirectory = '.'):
     resFiles = []
