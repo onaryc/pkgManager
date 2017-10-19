@@ -30,8 +30,9 @@ class Controllers():
         pkgDirectory, code, message = self.iniCtrl.GetValue('pkgDirectory')
         pkgDownloadFile, code, message = self.iniCtrl.GetValue('pkgDownloadFile')
         vitaDirectory, code, message = self.iniCtrl.GetValue('vitaDirectory')
+        nbDownloadQueues, code, message = self.iniCtrl.GetValue('nbDownloadQueues')
 
-        self.pkgCtrl = PkgCtrl(pkgDirectory, pkgDownloadFile, self)
+        self.pkgCtrl = PkgCtrl(pkgDirectory, pkgDownloadFile, nbDownloadQueues)
         self.vitaCtrl = VitaCtrl(vitaDirectory)
 
 class DataCtrl():
@@ -56,7 +57,7 @@ class DataCtrl():
         return res, code, message
         
 class PkgCtrl(DataCtrl):
-    def __init__(self, directory, downloadFile, controllers):
+    def __init__(self, directory, downloadFile):
         DataCtrl.__init__(self)
         
         self.directory = directory
@@ -64,6 +65,8 @@ class PkgCtrl(DataCtrl):
         self.pkgs = []
         #self.renamePkg = 'bin\\renamePkg.exe'
         self.renamePkg = 'renamePkg.exe'
+        
+        self.downloadQueues = []
  
         API.Subscribe('RefreshPkgsData', lambda args: self.RefreshPkgsData(*args))
         API.Subscribe('GetPkgsData', lambda args: self.GetPkgsData(*args))
