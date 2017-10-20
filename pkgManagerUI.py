@@ -290,8 +290,8 @@ class PkgFilesView(wx.Panel):
         description = [ \
             {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local Pkgs information'}, \
             {'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'}, \
-            {'command': self.Rename, 'image': 'resources/edit-clear.png', 'tooltip': 'Rename selected Pkg files'}, \
-            {'command': self.DownloadPkg, 'image': 'resources/edit-clear.png', 'tooltip': 'Download selected Pkg files'} \
+            {'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Rename selected Pkg files'}, \
+            {'command': self.DownloadPkg, 'image': 'resources/network-receive.png', 'tooltip': 'Download selected Pkg files'} \
             ]
 
         self.toolbar = UIToolBar(self, description)
@@ -327,12 +327,24 @@ class PkgFilesView(wx.Panel):
 
     def DownloadPkg(self, event = ''):
         checkedEntries = self.listCtrl.GetCheckEntries()
+
+        urlData = []
         for checkedEntry in checkedEntries:
-            filename = self.listCtrl.GetEntryText(checkedEntry, 'filename')
+            #filename = self.listCtrl.GetEntryText(checkedEntry, 'filename')
             downloadURL = self.listCtrl.GetEntryText(checkedEntry, 'downloadURL')
-            if downloadURL != "":
-                API.Send('DownloadPkg', downloadURL, filename)
-        
+            filename = downloadURL.split('/')[-1]
+
+            urlData.append([downloadURL, filename])
+
+        if urlData != []:
+            pkgDirectory = API.Send('GetPkgDirectory')
+            print 'UI pkgDirectory', pkgDirectory 
+            print 'UI urlData', urlData 
+            #API.Send('SetDownloadDirectory', pkgDirectory)
+            #API.Send('SetDownloadUrls', urlData)
+            #API.Send('StartDownload')
+            
+
 class VitaFilesView(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)

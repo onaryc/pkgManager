@@ -28,18 +28,20 @@ long_line_behaviour=1
 long_line_column=72
 
 [files]
-current_page=9
-FILE_NAME_0=1508;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CAPICtrl.py;0;4
-FILE_NAME_1=0;None;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CLICENSE;0;4
-FILE_NAME_2=28;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5Cmain.py;0;4
-FILE_NAME_3=119;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CMessageTools.py;0;4
-FILE_NAME_4=0;Conf;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CpkgManager.ini;0;4
-FILE_NAME_5=2176;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CpkgManagerCtrl.py;0;4
-FILE_NAME_6=23;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CpkgManagerDM.py;0;4
-FILE_NAME_7=1412;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CpkgManagerUI.py;0;4
-FILE_NAME_8=85;Markdown;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CREADME.md;0;4
-FILE_NAME_9=1556;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CFWTools.py;0;4
-FILE_NAME_10=0;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CpkgTools.py;0;4
+current_page=0
+FILE_NAME_0=11971;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CpkgManagerUI.py;0;4
+FILE_NAME_1=4279;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CAPICtrl.py;0;4
+FILE_NAME_2=134;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5Cmain.py;0;4
+FILE_NAME_3=221;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CMessageTools.py;0;4
+FILE_NAME_4=0;Conf;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CpkgManager.ini;0;4
+FILE_NAME_5=5500;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CpkgManagerCtrl.py;0;4
+FILE_NAME_6=562;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CpkgManagerDM.py;0;4
+FILE_NAME_7=251;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CFWTools.py;0;4
+FILE_NAME_8=94;Markdown;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CREADME.md;0;4
+FILE_NAME_9=17;None;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5Cpkgs%5Cdummy2.pkg;0;4
+FILE_NAME_10=224;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgManager%5CpkgTools.py;0;4
+FILE_NAME_11=0;C;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgTools%5CrenamePkg.c;0;4
+FILE_NAME_12=785;Python;0;EUTF-8;0;1;0;C%3A%5CProjets%5CPerso%5CpkgTools%5CrenamePkg.py;0;4
 
 [build-menu]
 EX_00_LB=_Execute

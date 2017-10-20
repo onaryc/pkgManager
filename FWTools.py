@@ -8,8 +8,8 @@ try:
     from os.path import isfile, isdir, join, splitext, getsize, exists
 
     #~ import wget
-    import threading
-    from Queue import Queue
+    #import threading
+    #from Queue import Queue
 except ImportError, e:
     assert False, 'import error in FWTools : {0}'.format(e)
     
@@ -74,42 +74,42 @@ def ConvertBytes(number):
 
     return number
 
-class FWThread(threading.Thread):
-    def __init__(self):
-        Thread.__init__(self)
+#class FWThread(threading.Thread):
+    #def __init__(self):
+        #Thread.__init__(self)
         
-        ## for stop/resume operation
-        self.state = threading.Condition()
+        ### for stop/resume operation
+        #self.state = threading.Condition()
 
-    def testPause(self):
-        with self.state:
-            if self.paused:
-                self.state.wait() # block until notified
+    #def testPause(self):
+        #with self.state:
+            #if self.paused:
+                #self.state.wait() # block until notified
 
-    def resume(self):
-        with self.state:
-            self.paused = False
-            self.state.notify()  # unblock self if waiting
+    #def resume(self):
+        #with self.state:
+            #self.paused = False
+            #self.state.notify()  # unblock self if waiting
 
-    def pause(self):
-        with self.state:
-            self.paused = True  # make self block and wait
+    #def pause(self):
+        #with self.state:
+            #self.paused = True  # make self block and wait
 
-class Downloader(FWThread):
-    def __init__(self, queue):
-        FWThread.__init__(self)
-        self.queue = queue
+#class Downloader(FWThread):
+    #def __init__(self, queue):
+        #FWThread.__init__(self)
+        #self.queue = queue
 
-    def run(self):
-        while True:
-            ## for pause/resume operations
-            self.testPause()
+    #def run(self):
+        #while True:
+            ### for pause/resume operations
+            #self.testPause()
                     
-            downloadUrl, saveAs = queue.get()
-            # sentinal
-            if not downloadUrl:
-                return
-            try:
-                urllib.urlretrieve(downloadUrl, filename=saveAs)
-            except Exception, e:
-                DPrint('error downloading {0}: {1}'.format(downloadUrl, e), -1)
+            #downloadUrl, saveAs = queue.get()
+            ## sentinal
+            #if not downloadUrl:
+                #return
+            #try:
+                #urllib.urlretrieve(downloadUrl, filename=saveAs)
+            #except Exception, e:
+                #DPrint('error downloading {0}: {1}'.format(downloadUrl, e), -1)
