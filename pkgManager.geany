@@ -28,17 +28,17 @@ long_line_behaviour=1
 long_line_column=72
 
 [files]
-current_page=9
-FILE_NAME_0=1508;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CAPICtrl.py;0;4
+current_page=7
+FILE_NAME_0=225;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CAPICtrl.py;0;4
 FILE_NAME_1=0;None;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CLICENSE;0;4
-FILE_NAME_2=28;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5Cmain.py;0;4
-FILE_NAME_3=119;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CMessageTools.py;0;4
+FILE_NAME_2=233;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5Cmain.py;0;4
+FILE_NAME_3=240;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CMessageTools.py;0;4
 FILE_NAME_4=0;Conf;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CpkgManager.ini;0;4
-FILE_NAME_5=2176;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CpkgManagerCtrl.py;0;4
+FILE_NAME_5=529;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CpkgManagerCtrl.py;0;4
 FILE_NAME_6=23;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CpkgManagerDM.py;0;4
-FILE_NAME_7=1412;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CpkgManagerUI.py;0;4
+FILE_NAME_7=9127;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CpkgManagerUI.py;0;4
 FILE_NAME_8=85;Markdown;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CREADME.md;0;4
-FILE_NAME_9=1556;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CFWTools.py;0;4
+FILE_NAME_9=1388;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CFWTools.py;0;4
 FILE_NAME_10=0;Python;0;EUTF-8;0;1;0;F%3A%5CProjets%5CpkgManager%5CpkgTools.py;0;4
 
 [build-menu]
