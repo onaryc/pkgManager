@@ -5,6 +5,8 @@ try:
     from os.path import exists, isdir, isfile, join
     #~ import wget
     import urllib
+    from Queue import Queue
+    import multiprocessing
     
     from lxml import etree
     
@@ -30,9 +32,11 @@ class Controllers():
         pkgDirectory, code, message = self.iniCtrl.GetValue('pkgDirectory')
         pkgDownloadFile, code, message = self.iniCtrl.GetValue('pkgDownloadFile')
         vitaDirectory, code, message = self.iniCtrl.GetValue('vitaDirectory')
+        nbDownloadQueues, code, message = self.iniCtrl.GetValue('nbDownloadQueues')
 
-        self.pkgCtrl = PkgCtrl(pkgDirectory, pkgDownloadFile, self)
+        self.pkgCtrl = PkgCtrl(pkgDirectory, pkgDownloadFile)
         self.vitaCtrl = VitaCtrl(vitaDirectory)
+        self.DownloadCtrl = DownloadCtrl(nbDownloadQueues)
 
 class DataCtrl():
     def __init__(self):
@@ -56,7 +60,7 @@ class DataCtrl():
         return res, code, message
         
 class PkgCtrl(DataCtrl):
-    def __init__(self, directory, downloadFile, controllers):
+    def __init__(self, directory, downloadFile):
         DataCtrl.__init__(self)
         
         self.directory = directory
@@ -64,13 +68,19 @@ class PkgCtrl(DataCtrl):
         self.pkgs = []
         #self.renamePkg = 'bin\\renamePkg.exe'
         self.renamePkg = 'renamePkg.exe'
+
+        #self.nbDownloadQueues = nbDownloadQueues
+        #self.downloadQueues = []
+        #for i in range(self.nbDownloadQueues):
+            #dQueue = Queue()
+            #self.downloadQueues.append(dQueue)
  
         API.Subscribe('RefreshPkgsData', lambda args: self.RefreshPkgsData(*args))
         API.Subscribe('GetPkgsData', lambda args: self.GetPkgsData(*args))
 
         API.Subscribe('RenamePkgFile', lambda args: self.RenamePkgFile(*args))
         
-        API.Subscribe('DownloadPkg', lambda args: self.DownloadPkg(*args))
+        #API.Subscribe('DownloadPkg', lambda args: self.DownloadPkg(*args))
         
         API.Subscribe('GetPkgDirectory', lambda args: self.GetDirectory(*args))
         API.Subscribe('SetPkgDirectory', lambda args: self.SetDirectory(*args))
@@ -206,35 +216,35 @@ class PkgCtrl(DataCtrl):
             
         #return res, code, message
 
-    def DownloadPkg(self, *args):
-        res = ''
-        code = 0
-        message = ''
+    #def DownloadPkg(self, *args):
+        #res = ''
+        #code = 0
+        #message = ''
         
-        url = args[0]
-        filename = args[1]
+        #url = args[0]
+        #filename = args[1]
 
-        if (self.directory != None) or (self.directory != ''):
-            if (exists(self.directory) == True) and (isdir(self.directory) == True):
-                try:
-                    filename = join(self.directory, filename)
-                    #wget.download(url, filename)
-                    downloadFile = urllib.URLopener()
-                    downloadFile.retrieve(url, filename, ProgressCallback)
+        #if (self.directory != None) or (self.directory != ''):
+            #if (exists(self.directory) == True) and (isdir(self.directory) == True):
+                #try:
+                    #filename = join(self.directory, filename)
+                    ##wget.download(url, filename)
+                    #downloadFile = urllib.URLopener()
+                    #downloadFile.retrieve(url, filename, ProgressCallback)
     
-                    #site = urllib.urlopen(url)
-                    #(file, headers) = urllib.urlretrieve(site, sys.argv[2], __progressCallback)
-                except Exception, e:
-                    code = -1
-                    message = 'Error in pkg download {0} : {1}'.format(url, e)
-            else:
-                code = -1
-                message = 'The pkg directory is not a directory or does not exist'
-        else:
-            code = -1
-            message = 'The pkg directory is empty'
+                    ##site = urllib.urlopen(url)
+                    ##(file, headers) = urllib.urlretrieve(site, sys.argv[2], __progressCallback)
+                #except Exception, e:
+                    #code = -1
+                    #message = 'Error in pkg download {0} : {1}'.format(url, e)
+            #else:
+                #code = -1
+                #message = 'The pkg directory is not a directory or does not exist'
+        #else:
+            #code = -1
+            #message = 'The pkg directory is empty'
             
-        return res, code, message
+        #return res, code, message
         
 class VitaCtrl():
     def __init__(self, directory):
@@ -351,13 +361,102 @@ class IniCtrl():
             message = 'Ini file does not exists or is not a file'
 
         return '', code, message
-        
 
-def ProgressCallback(blocks, block_size, total_size):
-    #blocks->data downloaded so far (first argument of your callback)
-    #block_size -> size of each block
-    #total-size -> size of the file
-    #implement code to calculate the percentage downloaded e.g
-    #print 'blocks', blocks
-    #print 'total_size', total_size
-    print 'downloaded ', blocks/float(total_size), '%'
+class DownloadCtrl():
+    def __init__(self, nbDownloadQueues):
+        #self.nbDownloadQueues = nbDownloadQueues
+        #self.downloadQueues = []
+        #for i in range(self.nbDownloadQueues):
+            #dQueue = Queue()
+            #self.downloadQueues.append(dQueue)
+
+        self.directory = ''
+        self.processes = []
+            
+        API.Subscribe('SetDownloadDirectory', lambda args: self.SetDownloadDirectory(args))
+        API.Subscribe('SetDownloadUrls', lambda args: self.SetDownloadUrls(args))
+        API.Subscribe('StartDownload', lambda args: self.StartDownload(args))
+        API.Subscribe('StopDownload', lambda args: self.StopDownload(args))
+
+    def SetDownloadDirectory(self, *args):
+        res = ''
+        code = 0
+        message = ''
+
+        directory = args[0]
+        print 'download directory', directory 
+
+        #if (directory != None) or (directory != ''):
+            #if (exists(directory) == True) and (isdir(directory) == True):
+                #self.directory = directory
+            #else:
+                #code = -1
+                #message = 'The download directory is not a directory or does not exist'
+        #else:
+            #code = -1
+            #message = 'The download directory is empty'
+            
+        return res, code, message
+        
+    def SetDownloadUrls(self, *args):
+        res = ''
+        code = 0
+        message = ''
+        
+        urlData = args[0]
+
+        process = multiprocessing.Process(target=self.DownloadProcess, args=(urlData,))
+        self.processes.append(process)
+
+        return res, code, message
+
+    def StartDownload(self, *args):
+        res = ''
+        code = 0
+        message = ''
+
+        if self.directory != '':
+            for process in self.processes:
+                process.start()
+        else:
+            code = -1
+            message = 'The download directory is empty'
+            
+        return res, code, message
+
+    def StopDownload(self, *args):
+        res = ''
+        code = 0
+        message = ''
+        
+        for process in self.processes:
+            process.terminate()
+            process.join()
+
+        ## TODO : clean the not finisher downloaded file
+        
+        return res, code, message
+        
+    def DownloadProcess(self, urlData):
+        res = ''
+        code = 0
+        message = ''
+        
+        for url, destination in urlData:
+            try:
+                filename = join(self.directory, destination)
+                downloadFile = urllib.URLopener()
+                downloadFile.retrieve(url, filename, self.ProgressCallback)
+                    
+                #urllib.urlretrieve(url, filename=destination)
+            except Exception, e:
+                DPrint('error downloading {0}: {1}'.format(downloadUrl, e), -1)
+                
+    def ProgressCallback(self, blocks, block_size, total_size):
+        #blocks->data downloaded so far (first argument of your callback)
+        #block_size -> size of each block
+        #total-size -> size of the file
+        #implement code to calculate the percentage downloaded e.g
+        #print 'blocks', blocks
+        #print 'total_size', total_size
+        print 'downloaded ', blocks/float(total_size), '%'
