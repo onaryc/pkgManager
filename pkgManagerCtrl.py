@@ -3,10 +3,12 @@
 try:
     import os
     from os.path import exists, isdir, isfile, join
-    #~ import wget
+
     import urllib
-    from Queue import Queue
-    import multiprocessing
+    
+    #from Queue import Queue
+    #from multiprocessing import Lock, Process, Queue
+    from multiprocessing import Process
     
     from lxml import etree
     
@@ -20,6 +22,8 @@ except ImportError, e:
     
 class Controllers():
     def __init__(self, iniFile):
+        API.Subscribe('StopControllers', lambda args: self.Stop(*args))
+        
         self.iniCtrl = IniCtrl(iniFile)
 
         #self.messageCtrl = MessageCtrl(ui = 'stdout') ## message displaid on the stdout
@@ -30,14 +34,28 @@ class Controllers():
         #~ API.Send('ParseIni')
 
         pkgDirectory, code, message = self.iniCtrl.GetValue('pkgDirectory')
-        pkgDownloadFile, code, message = self.iniCtrl.GetValue('pkgDownloadFile')
+        pkgGameFile, code, message = self.iniCtrl.GetValue('pkgGameFile')
+        pkgDLCFile, code, message = self.iniCtrl.GetValue('pkgDLCFile')
+        pkgUpdateFile, code, message = self.iniCtrl.GetValue('pkgUpdateFile')
         vitaDirectory, code, message = self.iniCtrl.GetValue('vitaDirectory')
         nbDownloadQueues, code, message = self.iniCtrl.GetValue('nbDownloadQueues')
 
-        self.pkgCtrl = PkgCtrl(pkgDirectory, pkgDownloadFile)
+        self.pkgCtrl = PkgCtrl(pkgDirectory, pkgGameFile, pkgDLCFile, pkgUpdateFile)
         self.vitaCtrl = VitaCtrl(vitaDirectory)
         self.DownloadCtrl = DownloadCtrl(nbDownloadQueues)
-
+        
+    def Stop(self, *args):
+        res = ''
+        code = 0
+        message = ''
+        
+        self.iniCtrl.Stop()
+        self.pkgCtrl.Stop()
+        self.vitaCtrl.Stop()
+        self.DownloadCtrl.Stop()
+        
+        return res, code, message
+        
 class DataCtrl():
     def __init__(self):
         API.Subscribe('GetModelAttributes', lambda args: self.GetModelAttributes(*args))
@@ -60,20 +78,17 @@ class DataCtrl():
         return res, code, message
         
 class PkgCtrl(DataCtrl):
-    def __init__(self, directory, downloadFile):
+    def __init__(self, directory, gameFile, dlcFile, updateFile):
         DataCtrl.__init__(self)
         
         self.directory = directory
-        self.downloadFile = downloadFile
+        self.gameFile = gameFile
+        self.dlcFile = dlcFile
+        self.updateFile = updateFile
+        
         self.pkgs = []
         #self.renamePkg = 'bin\\renamePkg.exe'
         self.renamePkg = 'renamePkg.exe'
-
-        #self.nbDownloadQueues = nbDownloadQueues
-        #self.downloadQueues = []
-        #for i in range(self.nbDownloadQueues):
-            #dQueue = Queue()
-            #self.downloadQueues.append(dQueue)
  
         API.Subscribe('RefreshPkgsData', lambda args: self.RefreshPkgsData(*args))
         API.Subscribe('GetPkgsData', lambda args: self.GetPkgsData(*args))
@@ -85,8 +100,8 @@ class PkgCtrl(DataCtrl):
         API.Subscribe('GetPkgDirectory', lambda args: self.GetDirectory(*args))
         API.Subscribe('SetPkgDirectory', lambda args: self.SetDirectory(*args))
 
-        API.Subscribe('GetDownloadFile', lambda args: self.GetDownloadFile(*args))
-        API.Subscribe('SetDownloadFile', lambda args: self.SetDownloadFile(*args))
+        API.Subscribe('GetGameFile', lambda args: self.GetGameFile(*args))
+        API.Subscribe('SetGameFile', lambda args: self.SetGameFile(*args))
 
     def GetDirectory(self, *args):
         return self.directory, 0, ''
@@ -106,11 +121,27 @@ class PkgCtrl(DataCtrl):
             
         return res, 0, ''
         
-    def GetDownloadFile(self, *args):
-        return self.downloadFile, 0, ''
+    def GetGameFile(self, *args):
+        return self.gameFile, 0, ''
     
-    def SetDownloadFile(self, *args):
-        self.downloadFile = args[0]
+    def SetGameFile(self, *args):
+        self.gameFile = args[0]
+        
+        return '', 0, ''
+        
+    def GetDLCFile(self, *args):
+        return self.dlcFile, 0, ''
+    
+    def SetDLCFile(self, *args):
+        self.dlcFile = args[0]
+        
+        return '', 0, ''
+        
+    def GetUpdateFile(self, *args):
+        return self.updateFile, 0, ''
+    
+    def SetUpdateFile(self, *args):
+        self.updateFile = args[0]
         
         return '', 0, ''
 
@@ -136,6 +167,14 @@ class PkgCtrl(DataCtrl):
                     ## TODO : call to a sfo parser in pkg to get all needed info
                     pkgFile = PkgFile(filename = pkgFile, fileSize = size, validity = validity, downloadURL = 'http://zeus.dl.playstation.net/cdn/EP0850/PCSB00779_00/EP0850-PCSB00779_00-AXIOMVERGE000000_bg_1_de788236d479ef1856369b4fc5870b918f2150f8.pkg')
                     self.pkgs.append(pkgFile)
+                
+                if (self.gameFile != None) or (self.gameFile != ''):
+                    if (exists(self.gameFile) == True) and (isfile(self.gameFile) == True):
+                        fd = open(self.gameFile, 'r')
+            
+                        fd.write(etree.tostring(root, pretty_print=True))
+                        
+                        fd.close()
             else:
                 code = -1
                 message = self.directory + ' is not a directory or does not exist'
@@ -191,68 +230,25 @@ class PkgCtrl(DataCtrl):
 
         return res, code, message
 
-    #def DownloadPkg(self, *args):
-        #res = ''
-        #code = 0
-        #message = ''
+    #def LoadGame(self, *args):
+        #pass
+
+    #def LoadDLC(self, *args):
+        #pass
         
-        #url = args[0]
-        #filename = args[1]
-
-        #if (self.directory != None) or (self.directory != ''):
-            #if (exists(self.directory) == True) and (isdir(self.directory) == True):
-                #try:
-                    #filename = join(self.directory, filename)
-                    #wget.download(url, filename)
-                #except Exception, e:
-                    #code = -1
-                    #message = 'Error in pkg download {0} ({1}): {1}'.format(url, e.errno, e.strerror)
-            #else:
-                #code = -1
-                #message = 'The pkg directory is not a directory or does not exist'
-        #else:
-            #code = -1
-            #message = 'The pkg directory is empty'
-            
-        #return res, code, message
-
-    #def DownloadPkg(self, *args):
-        #res = ''
-        #code = 0
-        #message = ''
+    #def LoadUpdate(self, *args):
+        #pass
         
-        #url = args[0]
-        #filename = args[1]
-
-        #if (self.directory != None) or (self.directory != ''):
-            #if (exists(self.directory) == True) and (isdir(self.directory) == True):
-                #try:
-                    #filename = join(self.directory, filename)
-                    ##wget.download(url, filename)
-                    #downloadFile = urllib.URLopener()
-                    #downloadFile.retrieve(url, filename, ProgressCallback)
-    
-                    ##site = urllib.urlopen(url)
-                    ##(file, headers) = urllib.urlretrieve(site, sys.argv[2], __progressCallback)
-                #except Exception, e:
-                    #code = -1
-                    #message = 'Error in pkg download {0} : {1}'.format(url, e)
-            #else:
-                #code = -1
-                #message = 'The pkg directory is not a directory or does not exist'
-        #else:
-            #code = -1
-            #message = 'The pkg directory is empty'
-            
-        #return res, code, message
+    def Stop(self):
+        pass
         
 class VitaCtrl():
     def __init__(self, directory):
         self.directory = directory
 
-        API.Subscribe('GetVitaDirectory', lambda args: self.GetDirectory(args))
-        API.Subscribe('SetVitaDirectory', lambda args: self.SetDirectory(args))
-        API.Subscribe('GetLocalVitaData', lambda args: self.GetLocalVitaData(args))
+        API.Subscribe('GetVitaDirectory', lambda args: self.GetDirectory(*args))
+        API.Subscribe('SetVitaDirectory', lambda args: self.SetDirectory(*args))
+        API.Subscribe('GetLocalVitaData', lambda args: self.GetLocalVitaData(*args))
         
     #def SetDirectory(self,directory):
         #self.directory = directory
@@ -277,7 +273,10 @@ class VitaCtrl():
             message = self.directory + ' is not a directory or does not exist'
 
         return vitaApps, code, message
-
+    
+    def Stop(self):
+        pass
+        
 class IniCtrl():
     def __init__(self, inifile):
         self.inifile = inifile
@@ -361,7 +360,10 @@ class IniCtrl():
             message = 'Ini file does not exists or is not a file'
 
         return '', code, message
-
+    
+    def Stop(self):
+        pass
+        
 class DownloadCtrl():
     def __init__(self, nbDownloadQueues):
         #self.nbDownloadQueues = nbDownloadQueues
@@ -372,11 +374,13 @@ class DownloadCtrl():
 
         self.directory = ''
         self.processes = []
+        
+        self.onGoingDownload = False
             
-        API.Subscribe('SetDownloadDirectory', lambda args: self.SetDownloadDirectory(args))
-        API.Subscribe('SetDownloadUrls', lambda args: self.SetDownloadUrls(args))
-        API.Subscribe('StartDownload', lambda args: self.StartDownload(args))
-        API.Subscribe('StopDownload', lambda args: self.StopDownload(args))
+        API.Subscribe('SetDownloadDirectory', lambda args: self.SetDownloadDirectory(*args))
+        API.Subscribe('SetDownloadUrls', lambda args: self.SetDownloadUrls(*args))
+        API.Subscribe('StartDownload', lambda args: self.StartDownload(*args))
+        API.Subscribe('StopDownload', lambda args: self.StopDownload(*args))
 
     def SetDownloadDirectory(self, *args):
         res = ''
@@ -384,17 +388,17 @@ class DownloadCtrl():
         message = ''
 
         directory = args[0]
-        print 'download directory', directory 
+        #~ print 'download directory', directory 
 
-        #if (directory != None) or (directory != ''):
-            #if (exists(directory) == True) and (isdir(directory) == True):
-                #self.directory = directory
-            #else:
-                #code = -1
-                #message = 'The download directory is not a directory or does not exist'
-        #else:
-            #code = -1
-            #message = 'The download directory is empty'
+        if (directory != None) or (directory != ''):
+            if (exists(directory) == True) and (isdir(directory) == True):
+                self.directory = directory
+            else:
+                code = -1
+                message = 'The download directory is not a directory or does not exist'
+        else:
+            code = -1
+            message = 'The download directory is empty'
             
         return res, code, message
         
@@ -405,19 +409,28 @@ class DownloadCtrl():
         
         urlData = args[0]
 
-        process = multiprocessing.Process(target=self.DownloadProcess, args=(urlData,))
+        process = Process(target=self.DownloadProcess, args=(urlData,))
         self.processes.append(process)
 
         return res, code, message
 
     def StartDownload(self, *args):
+        print 'StartDownload', args
         res = ''
         code = 0
         message = ''
 
         if self.directory != '':
-            for process in self.processes:
-                process.start()
+            if self.onGoingDownload == False:
+                self.onGoingDownload = True
+                for process in self.processes:
+                    process.start()
+                    
+                #for process in self.processes:
+                    #process.join()
+            else:
+                code = -1
+                message = 'Files are already being downloaded'
         else:
             code = -1
             message = 'The download directory is empty'
@@ -429,11 +442,16 @@ class DownloadCtrl():
         code = 0
         message = ''
         
-        for process in self.processes:
-            process.terminate()
-            process.join()
+        if self.onGoingDownload == True:
+            for process in self.processes:
+                process.terminate()
+                process.join()
 
-        ## TODO : clean the not finisher downloaded file
+        ## reinit the process list
+        self.processes = []
+        self.onGoingDownload = False
+        
+        ## TODO : clean the not finisher downloaded file?
         
         return res, code, message
         
@@ -444,19 +462,20 @@ class DownloadCtrl():
         
         for url, destination in urlData:
             try:
+                destination = '.'.join((destination, 'part'))
                 filename = join(self.directory, destination)
                 downloadFile = urllib.URLopener()
                 downloadFile.retrieve(url, filename, self.ProgressCallback)
                     
                 #urllib.urlretrieve(url, filename=destination)
             except Exception, e:
-                DPrint('error downloading {0}: {1}'.format(downloadUrl, e), -1)
+                DPrint('error downloading {0}: {1}'.format(url, e), -1)
                 
     def ProgressCallback(self, blocks, block_size, total_size):
         #blocks->data downloaded so far (first argument of your callback)
         #block_size -> size of each block
         #total-size -> size of the file
-        #implement code to calculate the percentage downloaded e.g
-        #print 'blocks', blocks
-        #print 'total_size', total_size
         print 'downloaded ', blocks/float(total_size), '%'
+
+    def Stop(self):
+        self.StopDownload('')

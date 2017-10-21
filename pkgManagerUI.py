@@ -29,6 +29,8 @@ class UI(wx.Frame):
         
         wx.Frame.__init__(self, None, title=title, size=size)
         
+        self.locale = wx.Locale(wx.LANGUAGE_ENGLISH)
+         
         self.statusBar = self.CreateStatusBar() # A Statusbar in the bottom of the window
 
         # Setting up the menu.
@@ -291,7 +293,8 @@ class PkgFilesView(wx.Panel):
             {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local Pkgs information'}, \
             {'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'}, \
             {'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Rename selected Pkg files'}, \
-            {'command': self.DownloadPkg, 'image': 'resources/network-receive.png', 'tooltip': 'Download selected Pkg files'} \
+            {'command': self.StartDownload, 'image': 'resources/network-receive.png', 'tooltip': 'Download selected Pkg files'}, \
+            {'command': self.StopDownload, 'image': 'resources/network-receive.png', 'tooltip': 'Stop download operations'} \
             ]
 
         self.toolbar = UIToolBar(self, description)
@@ -325,7 +328,7 @@ class PkgFilesView(wx.Panel):
         for pkgData in pkgsData:                
             self.listCtrl.AddEntry(pkgData)
 
-    def DownloadPkg(self, event = ''):
+    def StartDownload(self, event = ''):
         checkedEntries = self.listCtrl.GetCheckEntries()
 
         urlData = []
@@ -338,11 +341,12 @@ class PkgFilesView(wx.Panel):
 
         if urlData != []:
             pkgDirectory = API.Send('GetPkgDirectory')
-            print 'UI pkgDirectory', pkgDirectory 
-            print 'UI urlData', urlData 
-            #API.Send('SetDownloadDirectory', pkgDirectory)
-            #API.Send('SetDownloadUrls', urlData)
-            #API.Send('StartDownload')
+            API.Send('SetDownloadDirectory', pkgDirectory)
+            API.Send('SetDownloadUrls', urlData)
+            API.Send('StartDownload')
+            
+    def StopDownload(self, event = ''):
+        API.Send('StopDownload')
             
 
 class VitaFilesView(wx.Panel):
@@ -383,12 +387,18 @@ class SettingsView(wx.Panel):
         self.pkgDirectory.Bind(wx.EVT_DIRPICKER_CHANGED, self.OnSetPkgDir)
         self.vitaDirectory = wx.DirPickerCtrl(self, style = wx.DIRP_DEFAULT_STYLE|wx.DIRP_DIR_MUST_EXIST, message = 'Select the vita Directory')
         self.vitaDirectory.Bind(wx.EVT_DIRPICKER_CHANGED, self.OnSetVitaDir)
-        self.pkgDownloadFile = wx.FilePickerCtrl(self, message = 'Select the download Pkg File')
-        self.pkgDownloadFile.Bind(wx.EVT_FILEPICKER_CHANGED, self.OnSetDownloadFile)
+        self.pkgGameFile = wx.FilePickerCtrl(self, message = 'Select the game File')
+        self.pkgGameFile.Bind(wx.EVT_FILEPICKER_CHANGED, self.OnSetGameFile)
+        self.pkgDLCFile = wx.FilePickerCtrl(self, message = 'Select the DLC File')
+        self.pkgDLCFile.Bind(wx.EVT_FILEPICKER_CHANGED, self.OnSetDLCFile)
+        self.pkgUpdateFile = wx.FilePickerCtrl(self, message = 'Select the update File')
+        self.pkgUpdateFile.Bind(wx.EVT_FILEPICKER_CHANGED, self.OnSetUpdateFile)
 
         text1 = wx.StaticText(self, label = 'Pkg Directory') 
         text2 = wx.StaticText(self, label = 'Vita Directory') 
-        text3 = wx.StaticText(self, label = 'Pkg Download File')
+        text3 = wx.StaticText(self, label = 'Game File')
+        text4 = wx.StaticText(self, label = 'DLC File')
+        text5 = wx.StaticText(self, label = 'Update File')
 
         ## configure the sizers
         textFlags = wx.SizerFlags(0)
@@ -410,9 +420,17 @@ class SettingsView(wx.Panel):
         vitaDirectorySizer.Add(text2, textFlags)
         vitaDirectorySizer.Add(self.vitaDirectory, browserFlags)
         
-        pkgDownloadFileSizer = wx.BoxSizer(wx.HORIZONTAL)
-        pkgDownloadFileSizer.Add(text3, textFlags)
-        pkgDownloadFileSizer.Add(self.pkgDownloadFile, browserFlags)
+        pkgGameFileSizer = wx.BoxSizer(wx.HORIZONTAL)
+        pkgGameFileSizer.Add(text3, textFlags)
+        pkgGameFileSizer.Add(self.pkgGameFile, browserFlags)
+        
+        pkgDLCFileSizer = wx.BoxSizer(wx.HORIZONTAL)
+        pkgDLCFileSizer.Add(text4, textFlags)
+        pkgDLCFileSizer.Add(self.pkgDLCFile, browserFlags)
+        
+        pkgUpdateFileSizer = wx.BoxSizer(wx.HORIZONTAL)
+        pkgUpdateFileSizer.Add(text5, textFlags)
+        pkgUpdateFileSizer.Add(self.pkgUpdateFile, browserFlags)
         
         ## save ini file button definition and sizer
         self.saveButton = wx.Button(self, id = ID_BUTTON_SAVE_INI, label='Save Ini')
@@ -429,7 +447,9 @@ class SettingsView(wx.Panel):
         mainSizer = wx.BoxSizer(wx.VERTICAL)
         mainSizer.Add(pkgDirectorySizer, mixFlags)
         mainSizer.Add(vitaDirectorySizer, mixFlags)
-        mainSizer.Add(pkgDownloadFileSizer, mixFlags)
+        mainSizer.Add(pkgGameFileSizer, mixFlags)
+        mainSizer.Add(pkgDLCFileSizer, mixFlags)
+        mainSizer.Add(pkgUpdateFileSizer, mixFlags)
         mainSizer.Add(buttonSizer, 0, wx.LEFT, 0)
 
         self.SetSizerAndFit(mainSizer)
@@ -441,8 +461,14 @@ class SettingsView(wx.Panel):
         vitaDirectory = API.Send('GetVitaDirectory')
         self.vitaDirectory.SetPath(vitaDirectory)
 
-        downloadFile = API.Send('GetDownloadFile')
-        self.pkgDownloadFile.SetPath(downloadFile)
+        gameFile = API.Send('GetGameFile')
+        self.pkgGameFile.SetPath(gameFile)
+        
+        dlcFile = API.Send('GetDLCFile')
+        self.pkgDLCFile.SetPath(dlcFile)
+        
+        updateFile = API.Send('GetUpdateFile')
+        self.pkgUpdateFile.SetPath(updateFile)
         
     def OnResetIni(self, event):
         pkgDirectory = API.Send('GetIniValue', 'pkgDirectory')
@@ -451,16 +477,28 @@ class SettingsView(wx.Panel):
         vitaDirectory = API.Send('GetIniValue', 'vitaDirectory')
         self.vitaDirectory.SetPath(vitaDirectory)
 
-        downloadFile = API.Send('GetIniValue', 'pkgDownloadFile')
-        self.pkgDownloadFile.SetPath(downloadFile)
+        gameFile = API.Send('GetIniValue', 'pkgGameFile')
+        self.pkgGameFile.SetPath(gameFile)
+        
+        dlcFile = API.Send('GetIniValue', 'pkgDLCFile')
+        self.pkgDLCFile.SetPath(dlcFile)
+        
+        updateFile = API.Send('GetIniValue', 'pkgUpdateFile')
+        self.pkgUpdateFile.SetPath(updateFile)
         
     def OnSaveIni(self, event):
         ## set the new values
         pkgDirectory = self.pkgDirectory.GetPath()
         API.Send('SetIniValue', 'pkgDirectory', pkgDirectory)
         
-        pkgDownloadFile = self.pkgDownloadFile.GetPath()
-        API.Send('SetIniValue', 'pkgDownloadFile', pkgDownloadFile)
+        pkgGameFile = self.pkgGameFile.GetPath()
+        API.Send('SetIniValue', 'pkgGameFile', pkgGameFile)
+        
+        pkgDLCFile = self.pkgDLCFile.GetPath()
+        API.Send('SetIniValue', 'pkgDLCFile', pkgDLCFile)
+        
+        pkgUpdateFile = self.pkgUpdateFile.GetPath()
+        API.Send('SetIniValue', 'pkgUpdateFile', pkgUpdateFile)
         
         vitaDirectory = self.vitaDirectory.GetPath()
         API.Send('SetIniValue', 'vitaDirectory', vitaDirectory)
@@ -474,14 +512,19 @@ class SettingsView(wx.Panel):
     def OnSetPkgDir(self, event):
         pkgDirectory = self.pkgDirectory.GetPath()
         API.Send('SetPkgDirectory', pkgDirectory)
-        #API.Send('SetIniValue', 'pkgDirectory', pkgDirectory)
         
     def OnSetVitaDir(self, event):
         vitaDirectory = self.vitaDirectory.GetPath()
         API.Send('SetVitaDirectory', vitaDirectory)
-        #API.Send('SetIniValue', 'vitaDirectory', vitaDirectory)
         
-    def OnSetDownloadFile(self, event):
-        pkgDownloadFile = self.pkgDownloadFile.GetPath()
-        API.Send('SetDownloadFile', pkgDownloadFile)
-        #API.Send('SetIniValue', 'pkgDownloadFile', pkgDownloadFile)
+    def OnSetGameFile(self, event):
+        pkgGameFile = self.pkgGameFile.GetPath()
+        API.Send('SetGameFile', pkgGameFile)
+        
+    def OnSetDLCFile(self, event):
+        pkgDLCFile = self.pkgDLCFile.GetPath()
+        API.Send('SetDLCFile', pkgDLCFile)
+    
+    def OnSetUpdateFile(self, event):
+        pkgUpdateFile = self.pkgUpdateFile.GetPath()
+        API.Send('SetUpdateFile', pkgUpdateFile)
