@@ -2,6 +2,8 @@
 try:
     ## python module
     import os
+    from multiprocessing import Process
+    import time
 
     ## wx python module
     import wx
@@ -117,36 +119,37 @@ class UI(wx.Frame):
         self.statusBar.SetStatusText(message, 0) 
 
 class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin):
-    def __init__(self, parent, className):
+    def __init__(self, parent, className, proportion=1, checkBox = True):
         #wx.ListCtrl.__init__(self, parent, size=(-1, -1), style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
         wx.ListCtrl.__init__(self, parent, size=(-1, -1), style=wx.LC_REPORT)
 
         ListCtrlAutoWidthMixin.__init__(self)
-        CheckListCtrlMixin.__init__(self)
-        #self.EnableAlternateRowColours(True)
-        #self.AppendColumn('')
+        if checkBox == True:
+            CheckListCtrlMixin.__init__(self)
 
         self.mapAttributesCol = {}
         self.mapColAttributes = {}
+
         ## add the column based on the data model attributes
         attributes = API.Send('GetModelAttributes', className)
         for attribute in attributes:
             if 'display' in attribute:
                 displayName = attribute['display']
-            #else:
-                #displayName = attribute['name']
 
                 colIndex = self.AppendColumn(displayName)                
                 self.mapAttributesCol[attribute['name']] = colIndex
                 self.mapColAttributes[colIndex] = attribute['name']
 
-        self.sizerFlags = wx.SizerFlags(1)
+        self.sizerFlags = wx.SizerFlags(proportion)
         self.sizerFlags.Expand()
 
-        self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.OnShowPopup)
+        if checkBox == True:
+            self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.OnShowPopup)
 
         self.ID_CONTEXTUAL_CHECKED = wx.NewId()
+        self.ID_CONTEXTUAL_CHECK_ALL = wx.NewId()
         self.ID_CONTEXTUAL_UNCHECKED = wx.NewId()
+        self.ID_CONTEXTUAL_UNCHECK_ALL = wx.NewId()
         
         
     def RemoveValues(self):
@@ -159,27 +162,28 @@ class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin):
             name = self.mapColAttributes[i]
             tmp.append(entry[name])
 
-        rowIndex = self.Append(tmp)
-
-        if 'validity' in entry:
-            validity = entry['validity']
-
-            if validity == 'local':
-                color = wx.Colour('green')
-            elif validity == 'localError':
-                color = wx.Colour('red')
-            elif validity == 'distant':
-                color = wx.Colour('yellow')
-            else:
-                color = wx.Colour('white')
-    
-            ## alternate color
-            if rowIndex % 2:
-                color.MakeDisabled(200)
-            else:
-                color.MakeDisabled(255)
+        if tmp != []:
+            rowIndex = self.Append(tmp)
                 
-            self.SetItemBackgroundColour(rowIndex, color)
+            if 'validity' in entry:
+                validity = entry['validity']
+
+                if validity == 'local':
+                    color = wx.Colour('green')
+                elif validity == 'localError':
+                    color = wx.Colour('red')
+                elif validity == 'distant':
+                    color = wx.Colour('yellow')
+                else:
+                    color = wx.Colour('white')
+        
+                ## alternate color
+                if rowIndex % 2:
+                    color.MakeDisabled(200)
+                else:
+                    color.MakeDisabled(255)
+                    
+                self.SetItemBackgroundColour(rowIndex, color)
 
 
     def __getSelectedEntries(self, entry, entries = []):
@@ -228,8 +232,14 @@ class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin):
         #for text in "Add Delete Edit".split():
         item = self.popupmenu.Append(self.ID_CONTEXTUAL_CHECKED, 'Checked')
         self.Bind(wx.EVT_MENU, self.OnSelectPop, item)
+        
+        item = self.popupmenu.Append(self.ID_CONTEXTUAL_CHECK_ALL, 'Check All')
+        self.Bind(wx.EVT_MENU, self.OnSelectPop, item)
 
         item = self.popupmenu.Append(self.ID_CONTEXTUAL_UNCHECKED, 'Unchecked')
+        self.Bind(wx.EVT_MENU, self.OnSelectPop, item)
+        
+        item = self.popupmenu.Append(self.ID_CONTEXTUAL_UNCHECK_ALL, 'Uncheck All')
         self.Bind(wx.EVT_MENU, self.OnSelectPop, item)
 
         self.PopupMenu(self.popupmenu, event.GetPoint())
@@ -240,23 +250,31 @@ class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin):
         itemId = event.GetId()
         if itemId == self.ID_CONTEXTUAL_CHECKED: # checked the selection
             checked = True
+            selectedEntries = self.GetSelectedEntries()
         elif itemId == self.ID_CONTEXTUAL_UNCHECKED: # uncheck the selection
             checked = False
+            selectedEntries = self.GetSelectedEntries()
+        elif itemId == self.ID_CONTEXTUAL_CHECK_ALL: # uncheck the selection
+            checked = True
+            selectedEntries = range(self.GetItemCount())
+        elif itemId == self.ID_CONTEXTUAL_UNCHECK_ALL: # uncheck the selection
+            checked = False
+            selectedEntries = range(self.GetItemCount())
         else:
             return
         #item = self.popupmenu.FindItemById(itemId)
         #text = item.GetText()
-        selectedEntries = self.GetSelectedEntries()
+        
+        #selectedEntries = self.GetSelectedEntries()
         for selectedEntry in selectedEntries:
             self.CheckItem(selectedEntry, checked)
 
 class UIToolbarButton(wx.BitmapButton):
-    def __init__(self, parent, command, image, tooltip):
-        print 'image', image
+    def __init__(self, parent, command, image, tooltip, idB = -1):
         self.buttonImage = wx.Image(name = image)
         self.buttonBitmap =  self.buttonImage.ConvertToBitmap()
         
-        wx.BitmapButton.__init__(self, parent, bitmap = self.buttonBitmap)
+        wx.BitmapButton.__init__(self, parent, bitmap = self.buttonBitmap, id=idB)
 
         self.Bind(wx.EVT_BUTTON, command)
         self.SetToolTip(tooltip)
@@ -264,14 +282,28 @@ class UIToolbarButton(wx.BitmapButton):
 class UIToolBar(wx.BoxSizer):
     def __init__(self, parent, description):
         wx.BoxSizer.__init__(self, orient = wx.HORIZONTAL)
-        
+
+        self.buttonById = {}
         buttonFlags = wx.SizerFlags(0)
         for buttonData in description:
             command = buttonData['command']
             image = buttonData['image']
             tooltip = buttonData['tooltip']
-            
-            tbButton = UIToolbarButton(parent, command, image, tooltip)
+            if 'id' in buttonData:
+                idB = buttonData['id']
+            else:
+                idB = -1
+                
+            tbButton = UIToolbarButton(parent, command, image, tooltip, idB)
+
+            if idB != -1:
+                self.buttonById[idB] = tbButton 
+
+            if 'state' in buttonData:
+                state = buttonData['state']
+                if state == 'disabled':
+                    tbButton.Disable()
+                
             self.Add(tbButton, buttonFlags)
             
         self.sizerFlags = wx.SizerFlags(0)
@@ -279,6 +311,19 @@ class UIToolBar(wx.BoxSizer):
     def GetSizerFlags(self):
         return self.sizerFlags
 
+    def GetButtonByID (self, idB):
+        res = ''
+        
+        if idB in self.buttonById:
+            res = self.buttonById[idB]
+
+        return res
+
+def DummyProc():
+    while True:
+        print 'dummy'
+        time.sleep(1)
+    
 class PkgFilesView(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
@@ -289,52 +334,81 @@ class PkgFilesView(wx.Panel):
             #~ {'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'}, \
             #~ {'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Clear local Pkgs information'} \
             #~ ]
+        self.ID_START_BUTTON = wx.NewId()
+        self.ID_STOP_BUTTON = wx.NewId()
+            
         description = [ \
             {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local Pkgs information'}, \
-            {'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'}, \
+            {'command': self.ClearPkgData, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'}, \
             {'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Rename selected Pkg files'}, \
-            {'command': self.StartDownload, 'image': 'resources/network-receive.png', 'tooltip': 'Download selected Pkg files'}, \
-            {'command': self.StopDownload, 'image': 'resources/network-receive.png', 'tooltip': 'Stop download operations'} \
+            {'command': self.StartDownload, 'image': 'resources/go-bottom.png', 'tooltip': 'Download selected Pkg files', 'id':self.ID_START_BUTTON}, \
+            {'command': self.StopDownload, 'image': 'resources/process-stop.png', 'tooltip': 'Stop download operations', 'id':self.ID_STOP_BUTTON, 'state': 'disabled'} \
             ]
 
         self.toolbar = UIToolBar(self, description)
                 
         ## create the tree view
-        self.listCtrl = UIListCtrl(self, 'PkgFile')
+        self.listPkg = UIListCtrl(self, 'PkgFile')
+
+        ## create the download view
+        self.listDownload = UIListCtrl(self, 'DownloadFile', 0, False)
         
         ## main sizer
         mainSizer = wx.BoxSizer(wx.VERTICAL)
         mainSizer.Add(self.toolbar, self.toolbar.GetSizerFlags())
-        mainSizer.Add(self.listCtrl, self.listCtrl.GetSizerFlags())
+        mainSizer.Add(self.listPkg, self.listPkg.GetSizerFlags())
+        mainSizer.Add(self.listDownload, self.listDownload.GetSizerFlags())
 
         self.SetSizerAndFit(mainSizer)
 
+        #self.downloadRefresh = Process(target=self.RefreshDownloadData)
+        #self.downloadRefresh = Process(target=DummyProc)
+        self.downloadRefresh = Process(target=self.RefreshDownloadProcess)
+
     def Rename(self, event = ''):
-        checkedEntries = self.listCtrl.GetCheckEntries()
+        checkedEntries = self.listPkg.GetCheckEntries()
         for checkedEntry in checkedEntries:
-            filename = self.listCtrl.GetEntryText(checkedEntry, 'filename')
+            filename = self.listPkg.GetEntryText(checkedEntry, 'filename')
             API.Send('RenamePkgFile', filename)
         
         
-    def ClearValues(self, event = ''):
-        self.listCtrl.RemoveValues()
+    def ClearPkgData(self, event = ''):
+        self.listPkg.RemoveValues()
+
+    def ClearDownloadData(self, event = ''):
+        self.listDownload.RemoveValues()
         
     def FillValues(self, event = ''):
-        self.ClearValues()
+        self.ClearPkgData()
+        self.ClearDownloadData()
         
         API.Send('RefreshPkgsData')
         pkgsData = API.Send('GetPkgsData')
 
-        for pkgData in pkgsData:                
-            self.listCtrl.AddEntry(pkgData)
+        for pkgData in pkgsData:
+            #print 'pkgData', pkgData
+            self.listPkg.AddEntry(pkgData)
 
+    def RefreshDownloadProcess(self):
+        while True:
+            self.RefreshDownloadData()
+
+            timing = 1
+            if timing > 0:
+                time.sleep(timing)
+            
+    def RefreshDownloadData(self):
+        self.ClearDownloadData()
+        downloadsData = API.Send('GetDownloadData')
+        for downloadData in downloadsData:        
+            self.listDownload.AddEntry(downloadData)
+                
     def StartDownload(self, event = ''):
-        checkedEntries = self.listCtrl.GetCheckEntries()
-
+        checkedEntries = self.listPkg.GetCheckEntries()
         urlData = []
         for checkedEntry in checkedEntries:
             #filename = self.listCtrl.GetEntryText(checkedEntry, 'filename')
-            downloadURL = self.listCtrl.GetEntryText(checkedEntry, 'downloadURL')
+            downloadURL = self.listPkg.GetEntryText(checkedEntry, 'downloadURL')
             filename = downloadURL.split('/')[-1]
 
             urlData.append([downloadURL, filename])
@@ -342,11 +416,36 @@ class PkgFilesView(wx.Panel):
         if urlData != []:
             pkgDirectory = API.Send('GetPkgDirectory')
             API.Send('SetDownloadDirectory', pkgDirectory)
-            API.Send('SetDownloadUrls', urlData)
-            API.Send('StartDownload')
+            #API.Send('ClearDownloadData')
+            API.Send('SetDownloadData', urlData)
+
+            ## fill the download file list
+            #self.RefreshDownloadData()
+            self.downloadRefresh.start()
+            
+            #API.Send('StartDownload')
+
+            ## manage toolbar button
+            startButton = self.toolbar.GetButtonByID(self.ID_START_BUTTON)
+            #startButton = event.GetEventObject()
+            startButton.Disable()
+            stopButton = self.toolbar.GetButtonByID(self.ID_STOP_BUTTON)
+            stopButton.Enable()
             
     def StopDownload(self, event = ''):
         API.Send('StopDownload')
+        if self.downloadRefresh.is_alive():
+            self.downloadRefresh.terminate()
+            self.downloadRefresh.join()
+                
+        API.Send('CleanDownloadFiles')
+
+        ## manage toolbar button
+        startButton = self.toolbar.GetButtonByID(self.ID_START_BUTTON)
+        startButton.Enable()
+        stopButton = self.toolbar.GetButtonByID(self.ID_STOP_BUTTON)
+        stopButton.Disable()
+        
             
 
 class VitaFilesView(wx.Panel):
@@ -369,6 +468,7 @@ class VitaFilesView(wx.Panel):
         mainSizer.Add(self.listCtrl, self.listCtrl.GetSizerFlags())
 
         self.SetSizerAndFit(mainSizer)
+        
     def ClearValues(self, event = ''):
         self.listCtrl.RemoveValues()
         

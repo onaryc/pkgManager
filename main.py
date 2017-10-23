@@ -16,7 +16,7 @@ if __name__ == "__main__":
     MessageTools.Init(pDebug = False)
 
     ## start the communication layer
-    API.Init(host, port)
+    API.Init(host, port, False)
 
     ## start the controllers
     controllers = Controllers('pkgManager.ini')

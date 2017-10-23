@@ -1,5 +1,9 @@
 #!/usr/bin/env python2
-
+try:
+    import FWTools
+except ImportError, e:
+    assert False, 'import error in pkgManagerDM : {0}'.format(e)
+    
 class FWObject(object):
     def __init__(self, **kwargs):
         cls = self.__class__
@@ -68,6 +72,10 @@ class FWObject(object):
         for varData in varsData:
             varName = varData['name']
             value, code, message = self.Get(varName)
+
+            if 'conversion' in varData:
+                value = eval(varData['conversion'] +'('+str(value)+')')
+
             res[varName] = value
             
         return res, 0, ''
@@ -82,7 +90,7 @@ class PkgFile(FWObject):
         {'name': 'titleRegion', 'display': 'Region','default': ''}, \
         {'name': 'filename', 'display': 'Filename', 'default': ''}, \
         {'name': 'titleFW', 'display': 'FW Version','default': ''}, \
-        {'name': 'fileSize', 'display': 'Size','default': 0}, \
+        {'name': 'fileSize', 'display': 'Size','default': 0, 'conversion': 'FWTools.ConvertBytes'}, \
         {'name': 'downloadURL', 'display': 'URL','default': ''}, \
         {'name': 'zRIF', 'display': 'zRIF','default': ''}, \
         {'name': 'validity', 'default': ''}, \
@@ -98,8 +106,22 @@ class VitaFile(FWObject):
         {'name': 'titleType', 'display': 'Type', 'default': ''}, \
         {'name': 'titleName', 'display': 'Name', 'default': ''}, \
         {'name': 'titleRegion', 'display': 'Region', 'default': ''}, \
-        {'name': 'directorySize', 'display': 'Size', 'default': 0}, \
+        {'name': 'directorySize', 'display': 'Size', 'default': 0, 'conversion': 'FWTools.ConvertBytes'}, \
         {'name': 'directory', 'display': 'Directory', 'default': ''}, \
+        ]
+        
+    def __init__(self, **kwargs):
+        super(self.__class__, self).__init__(**kwargs)
+        
+class DownloadFile(FWObject):
+    # type = game, update or DLC
+    instanceVariables = [\
+        {'name': 'url', 'default': ''}, \
+        {'name': 'filename', 'default': ''}, \
+        {'name': 'basename', 'display': 'File Name', 'default': ''}, \
+        {'name': 'totalSize', 'display': 'Total Size', 'default': 0, 'conversion': 'FWTools.ConvertBytes'}, \
+        {'name': 'percent', 'display': 'Percent', 'default': 0}, \
+        {'name': 'speed', 'display': 'Speed', 'default': 0, 'conversion': 'FWTools.ConvertBytes'} \
         ]
         
     def __init__(self, **kwargs):

@@ -8,113 +8,129 @@ try:
 except ImportError, e:
     assert False, 'import error in APICtrl : {0}'.format(e)
 
+activateSocket = False 
 sockServer = ''
 errorServer = False
 sockClient = ''
 errorClient = False
 apis = {}
 
-def Init(host, port):
+def Init(host, port, aSocket=False):
+    global activateSocket 
     global sockServer, sockClient 
     global errorServer, errorClient
     global listenThread
     global debugOutput
 
-    sockServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sockClient = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    activateSocket = aSocket 
+    if activateSocket == True:
+        sockServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sockClient = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    DPrint('Api Init Start')
-    
-    ## init server
-    try:
-        sockServer.bind((host, port))
-        DPrint('server socket bind ok')
-        #print 'server socket bind ok'
+        DPrint('Api Init Start')
         
-        listenThread = Listen(sockServer)
-        listenThread.start()
-    except socket.error as e:
-        DPrint('server socket bind failed ({0}): {1}'.format(e.errno, e.strerror), -1)
-        errorServer = True
-    
-    ## init client
-    try:
-        sockClient.settimeout(5)
-        sockClient.connect((host, port))
-        sockClient.settimeout(None)
-        DPrint('client connection on {} ok\n'.format(port))
-    except socket.error:
-        DPrint('client socket connection failed', -1)
-        errorClient = True
+        ## init server
+        try:
+            sockServer.bind((host, port))
+            DPrint('server socket bind ok')
+            #print 'server socket bind ok'
+            
+            listenThread = Listen(sockServer)
+            listenThread.start()
+        except socket.error as e:
+            DPrint('server socket bind failed ({0}): {1}'.format(e.errno, e.strerror), -1)
+            errorServer = True
+        
+        ## init client
+        try:
+            sockClient.settimeout(5)
+            sockClient.connect((host, port))
+            sockClient.settimeout(None)
+            DPrint('client connection on {} ok\n'.format(port))
+        except socket.error:
+            DPrint('client socket connection failed', -1)
+            errorClient = True
 
-    DPrint('Api Init End')
+        DPrint('Api Init End')
         
 def Stop():
+    global activateSocket 
     global sockServer, sockClient
     global listenThread
-    
-    sockServer.close()
-    sockClient.close()
+
+    if activateSocket == True:
+        sockServer.close()
+        sockClient.close()
     
 def Subscribe(name, command):
     apis[name] = command
 
 def Send(api, *args):
+    global activateSocket 
     global sockClient, errorServer, errorClient
     res = ''
 
-    DPrint('Api Send Start')
     
-    if (errorServer != True) and (errorClient != True):
-        try:
-            DPrint('client sending api ' + api)
-            
-            ## encrypting the message : dict to str
-            message = {'api': api, 'args':args}
-            message = str(message)
+    DPrint('Api Send Start')
 
-            ## send the api message
-            sockClient.settimeout(1)
-            sockClient.send(message)
-            sockClient.settimeout(None)
-            
-            ## receiving the result
+    if activateSocket == True:
+        if (errorServer != True) and (errorClient != True):
             try:
-                ## receiving the header of the message : size for now
-                size = sockClient.recv(1024)
-                size = ast.literal_eval(size)
-                DPrint('client recv header size ' + str(size))
+                DPrint('client sending api ' + api)
                 
-                ## recieving the message itself
-                resSock = ''
-                remainingSize = size
-                while remainingSize > 0:
-                    tmpSock = sockClient.recv(1024)
-                    tmpSize = len(tmpSock)
+                ## encrypting the message : dict to str
+                message = {'api': api, 'args':args}
+                message = str(message)
 
-                    resSock += tmpSock
-                    remainingSize -= tmpSize
+                ## send the api message
+                sockClient.settimeout(1)
+                sockClient.send(message)
+                sockClient.settimeout(None)
+                
+                ## receiving the result
+                try:
+                    ## receiving the header of the message : size for now
+                    size = sockClient.recv(1024)
+                    size = ast.literal_eval(size)
+                    DPrint('client recv header size ' + str(size))
+                    
+                    ## recieving the message itself
+                    resSock = ''
+                    remainingSize = size
+                    while remainingSize > 0:
+                        tmpSock = sockClient.recv(1024)
+                        tmpSize = len(tmpSock)
+
+                        resSock += tmpSock
+                        remainingSize -= tmpSize
+                except socket.error as e:
+                    DPrint('connection socket recv failed ({0}): {1}'.format(e.errno, e.strerror), -1)
+                    resSock = ''
+                    
+                
+                ## decrypt the result : str to dict
+                try:
+                    resSock = ast.literal_eval(resSock)
+                    
+                    res = resSock['res']
+                    code = resSock['code']
+                    message = resSock['message']
+
+                    #DPrint(0, 'client recieving api res ' + res)
+                    DPrint('client recieving api res')
+                except:
+                    ## TODO manage error
+                    DPrint('error in decrypting api result ' + resSock, -1)
             except socket.error as e:
-                DPrint('connection socket recv failed ({0}): {1}'.format(e.errno, e.strerror), -1)
-                resSock = ''
-                
-            
-            ## decrypt the result : str to dict
-            try:
-                resSock = ast.literal_eval(resSock)
-                
-                res = resSock['res']
-                code = resSock['code']
-                message = resSock['message']
-
-                #DPrint(0, 'client recieving api res ' + res)
-                DPrint('client recieving api res')
-            except:
-                ## TODO manage error
-                DPrint('error in decrypting api result ' + resSock, -1)
-        except socket.error as e:
-            DPrint('client sending failed ({0}): {1}'.format(e.errno, e.strerror), -1)
-
+                DPrint('client sending failed ({0}): {1}'.format(e.errno, e.strerror), -1)
+    else:
+        if api in apis:
+            res, code, message = apis[api](args)
+        else:
+            res = ''
+            code = -1
+            message = 'api unknown'
+                    
     DPrint('Api Send End')
 
     return res

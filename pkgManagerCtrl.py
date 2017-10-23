@@ -4,7 +4,12 @@ try:
     import os
     from os.path import exists, isdir, isfile, join
 
-    import urllib
+    import sys
+    #import time
+    import timeit
+    
+    #import urllib
+    import urllib2
     
     #from Queue import Queue
     #from multiprocessing import Lock, Process, Queue
@@ -15,7 +20,7 @@ try:
     import APICtrl as API
     import FWTools
     import pkgTools
-    from pkgManagerDM import PkgFile, VitaFile
+    from pkgManagerDM import PkgFile, VitaFile, DownloadFile
     from MessageTools import Print, DPrint, ManageMessage 
 except ImportError, e:
     assert False, 'import error in pkgManagerCtrl : {0}'.format(e)
@@ -71,6 +76,8 @@ class DataCtrl():
             res = PkgFile.GetClassVarsData()
         elif className == 'VitaFile':
             res = VitaFile.GetClassVarsData()
+        elif className == 'DownloadFile':
+            res = DownloadFile.GetClassVarsData()
         else:
             code = -1
             message = className + ' class does not exist'
@@ -374,13 +381,17 @@ class DownloadCtrl():
 
         self.directory = ''
         self.processes = []
+        self.downloadFiles = []
         
         self.onGoingDownload = False
             
         API.Subscribe('SetDownloadDirectory', lambda args: self.SetDownloadDirectory(*args))
-        API.Subscribe('SetDownloadUrls', lambda args: self.SetDownloadUrls(*args))
+        API.Subscribe('SetDownloadData', lambda args: self.SetDownloadData(*args))
         API.Subscribe('StartDownload', lambda args: self.StartDownload(*args))
         API.Subscribe('StopDownload', lambda args: self.StopDownload(*args))
+        API.Subscribe('CleanDownloadFiles', lambda args: self.CleanFiles(*args))
+        API.Subscribe('GetDownloadData', lambda args: self.GetDownloadData(*args))
+        #API.Subscribe('ClearDownloadData', lambda args: self.ClearDownloadData(*args))
 
     def SetDownloadDirectory(self, *args):
         res = ''
@@ -402,20 +413,35 @@ class DownloadCtrl():
             
         return res, code, message
         
-    def SetDownloadUrls(self, *args):
+    def SetDownloadData(self, *args):
         res = ''
         code = 0
         message = ''
         
         urlData = args[0]
+        #print 'urlData', urlData
 
-        process = Process(target=self.DownloadProcess, args=(urlData,))
+        self.downloadFiles = []
+        for url, destination in urlData:
+            filename = join(self.directory, destination)
+            #filenamePart = '.'.join((filename, 'part'))
+
+            openedUrl = urllib2.urlopen(url)
+            urlInfo = openedUrl.info()
+            totalSize = int(urlInfo["Content-Length"])
+                
+            dFile = DownloadFile(url=url, filename=filename, basename=destination, totalSize=totalSize)
+
+            self.downloadFiles.append(dFile)
+            
+        #process = Process(target=self.DownloadProcess, args=(urlData,))
+        process = Process(target=self.DownloadProcess)
         self.processes.append(process)
 
         return res, code, message
 
     def StartDownload(self, *args):
-        print 'StartDownload', args
+        #print 'StartDownload', args
         res = ''
         code = 0
         message = ''
@@ -444,38 +470,107 @@ class DownloadCtrl():
         
         if self.onGoingDownload == True:
             for process in self.processes:
-                process.terminate()
-                process.join()
+                if process.is_alive():
+                    process.terminate()
+                    process.join()
 
         ## reinit the process list
         self.processes = []
         self.onGoingDownload = False
         
-        ## TODO : clean the not finisher downloaded file?
-        
         return res, code, message
-        
-    def DownloadProcess(self, urlData):
+
+    def DownloadProcess(self):
+        for dFile in self.downloadFiles:
+            url = dFile.Get('url')[0]
+            #print 'url', url 
+            try:
+                ## open the distant url
+                openedUrl = urllib2.urlopen(url)
+                totalSize = dFile.Get('totalSize')[0]
+
+                ## open the local file
+                filename = dFile.Get('filename')[0]
+                filenamePart = '.'.join((filename, 'part'))
+                fd = open(filenamePart, 'wb')
+                
+                ## download the file
+                blockSize = 8192 #100000 # urllib.urlretrieve uses 8192
+                count = 0
+                before = timeit.default_timer()
+                while True:
+                    ## read a chunk of the distant file
+                    chunk = openedUrl.read(blockSize)
+                    if not chunk:
+                        break
+
+                    fd.write(chunk)
+
+                    ## compute the percentage
+                    if totalSize > 0:
+                        count += 1
+                        percent = int(count * blockSize * 100 / totalSize)
+                        if percent > 100:
+                            percent = 100
+
+                        dFile.Set('percent', percent)
+
+                    ## compute the speed
+                    now = timeit.default_timer()
+                    deltaTime = now - before
+                    before = now
+
+                    if deltaTime > 0:
+                        speed = blockSize / deltaTime
+
+                        dFile.Set('speed', speed)
+
+                    ## debug
+                    #res = 'filename ' + filename + ' ' + str(percent) + '% ' + str(FWTools.ConvertBytes(speed))
+                    #sys.stdout.write('\r' + res)
+
+                    
+                fd.flush()
+                fd.close()
+
+                if percent == 100:
+                    os.rename(filenamePart, filename)
+            except Exception, e:
+                DPrint('error downloading {0}: {1}'.format(url, e), -1)
+
+    def CleanFiles(self, *args):
         res = ''
         code = 0
         message = ''
         
-        for url, destination in urlData:
-            try:
-                destination = '.'.join((destination, 'part'))
-                filename = join(self.directory, destination)
-                downloadFile = urllib.URLopener()
-                downloadFile.retrieve(url, filename, self.ProgressCallback)
-                    
-                #urllib.urlretrieve(url, filename=destination)
-            except Exception, e:
-                DPrint('error downloading {0}: {1}'.format(url, e), -1)
-                
-    def ProgressCallback(self, blocks, block_size, total_size):
-        #blocks->data downloaded so far (first argument of your callback)
-        #block_size -> size of each block
-        #total-size -> size of the file
-        print 'downloaded ', blocks/float(total_size), '%'
+        partFiles = FWTools.GetListFiles('.part', self.directory)
+
+        for partFile in partFiles:
+            filename = join(self.directory, partFile)
+            os.remove(filename)
+
+        return res, code, message
+        
+    def GetDownloadData(self, *args):
+        downloadData = []
+        code = 0
+        message = ''
+
+        for dFile in self.downloadFiles:
+            res, code, message = dFile.Serialize()
+            downloadData.append(res)
+
+        return downloadData, code, message
+        
+    #def ClearDownloadData(self, *args):
+        #res = ''
+        #code = 0
+        #message = ''
+
+        ### todo garbage collect the previous dfile instance?
+        #self.downloadFiles = []
+
+        #return res, code, message
 
     def Stop(self):
         self.StopDownload('')
