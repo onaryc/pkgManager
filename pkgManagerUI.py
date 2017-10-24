@@ -1,8 +1,11 @@
 #!/usr/bin/env python2
+# -*- coding: utf-8 -*-*
+
 try:
     ## python module
     import os
-    from multiprocessing import Process
+    #from multiprocessing import Process
+    from threading import Thread
     import time
 
     ## wx python module
@@ -25,6 +28,18 @@ ID_BUTTON_REFRESH_PKG = wx.NewId()
 
 #SendMessage, EVT_SEND_MESSAGE = wx.lib.newevent.NewEvent()
 
+class UpdateUI(Thread):
+    def __init__(self, ui):
+        Thread.__init__(self)
+        self.ui = ui
+
+    def run(self):
+        while True:
+            self.ui.Refresh()
+            
+            ## update only each second
+            time.sleep(1)
+                
 class UI(wx.Frame):
     def __init__(self, title = 'Pkg Manager', size=(800,400)):
         self.app = wx.App(False)
@@ -79,6 +94,8 @@ class UI(wx.Frame):
         self.notebook.AddPage(self.panelSettings, "Settings")
         
         API.Subscribe('SendUIMessage', lambda args: self.SendUIMessage(*args))
+
+        self.updateUI = UpdateUI(self)
         
         self.Show(True)
 
@@ -90,7 +107,9 @@ class UI(wx.Frame):
         self.panelPkg.FillValues()
         self.panelVita.FillValues()
         self.panelSettings.FillValues()
-        
+
+        #self.updateUI.start()
+            
         self.app.MainLoop()
         
     def Stop(self):
@@ -112,6 +131,9 @@ class UI(wx.Frame):
         if result == wx.ID_OK:
             self.Stop()
 
+    def Refresh(self):
+        self.panelPkg.Refresh()
+        
     def SendUIMessage(self, *args):
         message = args[0]
         code = args[1]
@@ -160,9 +182,11 @@ class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin):
         tmp = []
         for i in range(self.GetColumnCount()):
             name = self.mapColAttributes[i]
+            
             tmp.append(entry[name])
 
         if tmp != []:
+            #print 'tmp', tmp 
             rowIndex = self.Append(tmp)
                 
             if 'validity' in entry:
@@ -172,6 +196,8 @@ class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin):
                     color = wx.Colour('green')
                 elif validity == 'localError':
                     color = wx.Colour('red')
+                elif validity == 'distantNoUrl':
+                    color = wx.Colour('orange')
                 elif validity == 'distant':
                     color = wx.Colour('yellow')
                 else:
@@ -319,21 +345,19 @@ class UIToolBar(wx.BoxSizer):
 
         return res
 
-def DummyProc():
-    while True:
-        print 'dummy'
-        time.sleep(1)
+#def DummyProc():
+    #while True:
+        #print 'dummy'
+        #time.sleep(1)
     
 class PkgFilesView(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
-        
+
+        API.Subscribe('RefreshDownloadData', lambda args: self.RefreshDownloadData(*args))
+        API.Subscribe('DownloadDone', lambda args: self.DownloadDone(*args))
+
         ## create the toolbar toolbar
-        #~ description = [ \
-            #~ {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local Pkgs information'}, \
-            #~ {'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'}, \
-            #~ {'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Clear local Pkgs information'} \
-            #~ ]
         self.ID_START_BUTTON = wx.NewId()
         self.ID_STOP_BUTTON = wx.NewId()
             
@@ -363,7 +387,7 @@ class PkgFilesView(wx.Panel):
 
         #self.downloadRefresh = Process(target=self.RefreshDownloadData)
         #self.downloadRefresh = Process(target=DummyProc)
-        self.downloadRefresh = Process(target=self.RefreshDownloadProcess)
+        #self.downloadRefresh = Process(target=self.RefreshDownloadProcess)
 
     def Rename(self, event = ''):
         checkedEntries = self.listPkg.GetCheckEntries()
@@ -389,19 +413,42 @@ class PkgFilesView(wx.Panel):
             #print 'pkgData', pkgData
             self.listPkg.AddEntry(pkgData)
 
-    def RefreshDownloadProcess(self):
-        while True:
-            self.RefreshDownloadData()
+    #def RefreshDownloadProcess(self):
+        #while True:
+            #self.RefreshDownloadData()
 
-            timing = 1
-            if timing > 0:
-                time.sleep(timing)
-            
-    def RefreshDownloadData(self):
+            #timing = 1
+            #if timing > 0:
+                #time.sleep(timing)
+    def Refresh(self):
+        self.RefreshDownloadData()
+        
+    def RefreshDownloadData(self, *args):
+        #print 'RefreshDownloadData'
+        res = ''
+        code = 0
+        message = ''
+        
         self.ClearDownloadData()
         downloadsData = API.Send('GetDownloadData')
+        #print 'downloadsData', downloadsData
         for downloadData in downloadsData:        
             self.listDownload.AddEntry(downloadData)
+
+        return res, code, message
+        
+    def DownloadDone(self, *args):
+        print 'DownloadDone'
+        res = ''
+        code = 0
+        message = ''
+
+        startButton = self.toolbar.GetButtonByID(self.ID_START_BUTTON)
+        startButton.Enable()
+        stopButton = self.toolbar.GetButtonByID(self.ID_STOP_BUTTON)
+        stopButton.Disable()
+
+        return res, code, message
                 
     def StartDownload(self, event = ''):
         checkedEntries = self.listPkg.GetCheckEntries()
@@ -421,9 +468,9 @@ class PkgFilesView(wx.Panel):
 
             ## fill the download file list
             #self.RefreshDownloadData()
-            self.downloadRefresh.start()
+            #self.downloadRefresh.start()
             
-            #API.Send('StartDownload')
+            API.Send('StartDownload')
 
             ## manage toolbar button
             startButton = self.toolbar.GetButtonByID(self.ID_START_BUTTON)
@@ -433,19 +480,19 @@ class PkgFilesView(wx.Panel):
             stopButton.Enable()
             
     def StopDownload(self, event = ''):
-        API.Send('StopDownload')
-        if self.downloadRefresh.is_alive():
-            self.downloadRefresh.terminate()
-            self.downloadRefresh.join()
-                
-        API.Send('CleanDownloadFiles')
-
         ## manage toolbar button
         startButton = self.toolbar.GetButtonByID(self.ID_START_BUTTON)
         startButton.Enable()
         stopButton = self.toolbar.GetButtonByID(self.ID_STOP_BUTTON)
         stopButton.Disable()
-        
+
+        API.Send('StopDownload')
+
+        #if self.downloadRefresh.is_alive():
+            #self.downloadRefresh.terminate()
+            #self.downloadRefresh.join()
+
+        API.Send('CleanDownloadFiles')
             
 
 class VitaFilesView(wx.Panel):

@@ -1,7 +1,8 @@
 #!/usr/bin/env python2
 
 try:
-    import APICtrl as API
+    #import APICtrl as API
+    #from APICtrl import APICtrl2 as API
     
     #from blessings import Terminal
     from colorama import init, Fore, Back, Style

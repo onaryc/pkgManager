@@ -2,6 +2,8 @@
 
 try:
     import APICtrl as API
+    #from APICtrl import APICtrl2, SetAPICtrlInstance
+    #import APICtrl
     from pkgManagerUI import UI
     from pkgManagerCtrl import Controllers
     import MessageTools
@@ -16,6 +18,8 @@ if __name__ == "__main__":
     MessageTools.Init(pDebug = False)
 
     ## start the communication layer
+    #API = APICtrl2(host, port, False)
+    #SetAPICtrlInstance(API)
     API.Init(host, port, False)
 
     ## start the controllers
@@ -23,6 +27,7 @@ if __name__ == "__main__":
 
     ## start the ui
     ui = UI()
+    
     ui.Start()
 
 
