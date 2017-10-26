@@ -50,8 +50,17 @@ class UI(wx.Frame):
          
         self.statusBar = self.CreateStatusBar() # A Statusbar in the bottom of the window
 
-        # Setting up the menu.
+        # Setting up the menu
+        ## file menu
+        self.ID_FILE_IMPORT_GAMES = wx.NewId()
+        self.ID_FILE_IMPORT_DLCS = wx.NewId()
+        self.ID_FILE_IMPORT_UPDATES = wx.NewId()
+        
         fileMenu = wx.Menu()
+        fileMenu.Append(self.ID_FILE_IMPORT_GAMES,"Import Games"," Import Games")
+        fileMenu.Append(self.ID_FILE_IMPORT_DLCS,"Import DLCs"," Import DLC")
+        fileMenu.Append(self.ID_FILE_IMPORT_UPDATES,"Import Updates"," Import Updates")
+        fileMenu.AppendSeparator()
         menuExit = fileMenu.Append(wx.ID_EXIT,"E&xit"," Close Pkg Manager")
 
         ## edit menu
@@ -59,9 +68,9 @@ class UI(wx.Frame):
         #menuConfiguration = editMenu.Append(ID_MENU_SETTINGS,"Settings"," Settings")
 
         ## tools menu
-        toolsMenu = wx.Menu()
-        menuToolsRename = toolsMenu.Append(ID_MENU_RENAME_ALL,"Rename All"," rename all pkg")
-        menuToolsDownload = toolsMenu.Append(ID_MENU_DOWNLOAD_ALL,"Download All"," download all pkg")
+        #toolsMenu = wx.Menu()
+        #menuToolsRename = toolsMenu.Append(ID_MENU_RENAME_ALL,"Rename All"," rename all pkg")
+        #menuToolsDownload = toolsMenu.Append(ID_MENU_DOWNLOAD_ALL,"Download All"," download all pkg")
 
         # other menu
         otherMenu = wx.Menu()
@@ -72,14 +81,18 @@ class UI(wx.Frame):
 
         ## adding menu to the menu bar
         menuBar.Append(fileMenu,"&File")
-        menuBar.Append(toolsMenu,"&Tools")
+        #menuBar.Append(toolsMenu,"&Tools")
         #menuBar.Append(editMenu,"&Edit")
         menuBar.Append(otherMenu,"&?")
         self.SetMenuBar(menuBar)  # Adding the MenuBar to the Frame content.
 
         # Set events.
+        self.Bind(wx.EVT_MENU, self.OnImport)
+        self.Bind(wx.EVT_MENU, self.OnImport)
+        self.Bind(wx.EVT_MENU, self.OnImport)
         self.Bind(wx.EVT_MENU, self.OnAbout, menuAbout)
         self.Bind(wx.EVT_MENU, self.OnExit, menuExit)
+        
         self.Bind(wx.EVT_CLOSE, self.OnExit)
 
 
@@ -131,6 +144,25 @@ class UI(wx.Frame):
         if result == wx.ID_OK:
             self.Stop()
 
+    def OnImport(self, event):
+        itemId = event.GetId()
+        importType = ''
+        if itemId == self.ID_FILE_IMPORT_GAMES:
+            importType = 'game'
+        elif itemId == self.ID_FILE_IMPORT_DLCS:
+            importType = 'dlc'
+        elif itemId == self.ID_FILE_IMPORT_UPDATES:
+            importType = 'update'
+
+        if importType != '':
+            openDlg = wx.FileDialog(self, "Select NPS file", "", "", "NPS file (*.tsv)|*.tsv", wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
+
+            openDlg.ShowModal()
+            filename = openDlg.GetPath()
+            openDlg.Destroy()
+        
+            API.Send('ImportNPS', filename, importType)
+            
     def Refresh(self):
         self.panelPkg.Refresh()
         
@@ -364,7 +396,7 @@ class PkgFilesView(wx.Panel):
         description = [ \
             {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local Pkgs information'}, \
             {'command': self.ClearPkgData, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'}, \
-            {'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Rename selected Pkg files'}, \
+            {'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Rename selected Pkg files', 'state': 'disabled'}, \
             {'command': self.StartDownload, 'image': 'resources/go-bottom.png', 'tooltip': 'Download selected Pkg files', 'id':self.ID_START_BUTTON}, \
             {'command': self.StopDownload, 'image': 'resources/process-stop.png', 'tooltip': 'Stop download operations', 'id':self.ID_STOP_BUTTON, 'state': 'disabled'} \
             ]

@@ -93,6 +93,7 @@ class PkgCtrl(DataCtrl):
         DataCtrl.__init__(self)
         
         self.directory = directory
+        self.database = 'config/database.xml'
         self.gameFile = gameFile
         self.dlcFile = dlcFile
         self.updateFile = updateFile
@@ -103,6 +104,7 @@ class PkgCtrl(DataCtrl):
  
         API.Subscribe('RefreshPkgsData', lambda args: self.RefreshPkgsData(*args))
         API.Subscribe('GetPkgsData', lambda args: self.GetPkgsData(*args))
+        API.Subscribe('ImportNPS', lambda args: self.ImportNPS(*args))
 
         API.Subscribe('RenamePkgFile', lambda args: self.RenamePkgFile(*args))
         
@@ -180,61 +182,50 @@ class PkgCtrl(DataCtrl):
                     pkgFile = PkgFile(filename = pkgFile, fileSize = size, validity = validity, downloadURL = 'http://zeus.dl.playstation.net/cdn/EP0850/PCSB00779_00/EP0850-PCSB00779_00-AXIOMVERGE000000_bg_1_de788236d479ef1856369b4fc5870b918f2150f8.pkg')
                     self.pkgs.append(pkgFile)
                 
-                if (self.gameFile != None) and (self.gameFile != ''):
-                    if (exists(self.gameFile) == True) and (isfile(self.gameFile) == True):
-                        titleIDIndex = 0
-                        titleRegionIndex = 1
-                        titleNameIndex = 2
-                        downloadURLIndex = 3
-                        zRIFIndex = 4
-                        with open(self.gameFile, 'r') as f:
-                            for line in f:
-                                #print line
-                                ## get file data
-                                data = line.split('\t')
-                                #print data 
-                                titleID = data[titleIDIndex]
-                                titleRegion = data[titleRegionIndex]
-                                titleName = data[titleNameIndex]
-                                downloadURL = data[downloadURLIndex]
-                                zRIF = data[zRIFIndex]
+                #if (self.gameFile != None) and (self.gameFile != ''):
+                    #if (exists(self.gameFile) == True) and (isfile(self.gameFile) == True):
+                        #titleIDIndex = 0
+                        #titleRegionIndex = 1
+                        #titleNameIndex = 2
+                        #downloadURLIndex = 3
+                        #zRIFIndex = 4
+                        #with open(self.gameFile, 'r') as f:
+                            #for line in f:
+                                ##print line
+                                ### get file data
+                                #data = line.split('\t')
+                                ##print data 
+                                #titleID = data[titleIDIndex]
+                                #titleRegion = data[titleRegionIndex]
+                                #titleName = data[titleNameIndex]
+                                #downloadURL = data[downloadURLIndex]
+                                #zRIF = data[zRIFIndex]
 
-                                ## remove special char from title name
-                                titleName = titleName.translate(None, '®™ö®’ü')
-                                #print 'titleName', titleName
-                                #titleName = titleName.translate('o', 'ö')
+                                ### remove special char from title name
+                                #titleName = titleName.translate(None, '®™ö®’ü')
+                                ##print 'titleName', titleName
+                                ##titleName = titleName.translate('o', 'ö')
                                 
-                                ## complete data
-                                titleType = 'game'
-                                if downloadURL != 'MISSING':
-                                    filename = downloadURL.split('/')[-1]
+                                ### complete data
+                                #titleType = 'game'
+                                #if downloadURL != 'MISSING':
+                                    #filename = downloadURL.split('/')[-1]
                                 
-                                    validity = 'distant'
-                                else:
-                                    filename = ''
-                                    validity = 'distantNoUrl'
-                                #try:
-                                    #openedUrl = urllib2.urlopen(downloadURL)
-                                    #urlInfo = openedUrl.info()
-                                    #totalSize = int(urlInfo["Content-Length"])
-                                #except:
-                                    #totalSize = ''
-                                totalSize = 0
+                                    #validity = 'distant'
+                                #else:
+                                    #filename = ''
+                                    #validity = 'distantNoUrl'
+                                ##try:
+                                    ##openedUrl = urllib2.urlopen(downloadURL)
+                                    ##urlInfo = openedUrl.info()
+                                    ##totalSize = int(urlInfo["Content-Length"])
+                                ##except:
+                                    ##totalSize = ''
+                                #totalSize = 0
                                 
-                                ## TODO shall search for existing pkg to complete info
-                                pkgFile = PkgFile(titleID = titleID, titleType = titleType, titleName = titleName, titleRegion = titleRegion, filename = filename, fileSize = totalSize, downloadURL = downloadURL , zRIF = zRIF, validity = validity)
-                                self.pkgs.append(pkgFile)
-                    
-                        #fd = open(self.gameFile, 'r')
-
-                        #line = fd.readline()
-                        ### compute the header
-                        #while line != '':
-                            
-                            
-                            #line = fd.readline()
-                        
-                        #fd.close()
+                                ### TODO shall search for existing pkg to complete info
+                                #pkgFile = PkgFile(titleID = titleID, titleType = titleType, titleName = titleName, titleRegion = titleRegion, filename = filename, fileSize = totalSize, downloadURL = downloadURL , zRIF = zRIF, validity = validity)
+                                #self.pkgs.append(pkgFile)
             else:
                 code = -1
                 message = self.directory + ' is not a directory or does not exist'
@@ -244,6 +235,98 @@ class PkgCtrl(DataCtrl):
             
         return '', code, message
 
+    def ImportNPS(self, *args):
+        res = ''
+        code = 0
+        message = ''
+        
+        filename = args[0]
+        appType = args[1]
+        
+        if (filename != None) and (filename != ''):
+            if (exists(filename) == True) and (isfile(filename) == True):
+                thread = Thread(target=self.ImportThread, args=(filename,appType,))
+                thread.start()
+            else:
+                code = -1
+                message = filename + ' is not a file or does not exist'
+        else:
+            code = -1
+            message = 'Filename is empty'
+            
+        return res, code, message
+
+    def ImportThread(self, filename, appType):
+        rootItem = etree.Element('vitaDB')
+        with open(filename, 'r') as f:
+            for line in f:
+                pkgItem = etree.SubElement(rootItem, 'vitaPkg')
+
+                ## get file data
+                data = line.split('\t')
+
+                ## get titleID
+                titleID = data[0]
+                propItem = etree.SubElement(pkgItem, 'titleID')
+                propItem.text = titleID
+
+                ## get titleRegion 
+                titleRegion = data[1]
+                propItem = etree.SubElement(pkgItem, 'titleRegion')
+                propItem.text = titleRegion
+
+                ## get titleName
+                titleName = data[2]
+                propItem = etree.SubElement(pkgItem, 'titleName')
+                try: ## unicode pb
+                    ## remove/replace (TODO) special char from title name
+                    titleName = titleName.translate(None, '®™ö®’ü')
+                    #titleName = titleName.translate('o', 'ö')
+
+                    propItem.text = titleName
+                except:
+                    propItem.text = titleName = ''
+
+                ## get downloadURL and filename
+                downloadURL = data[3]
+                if downloadURL != 'MISSING':
+                    filename = downloadURL.split('/')[-1]
+                else:
+                    filename = ''
+                propItem = etree.SubElement(pkgItem, 'downloadURL')
+                propItem.text = downloadURL
+                propItem = etree.SubElement(pkgItem, 'filename')
+                propItem.text = filename
+
+                ## get zRIF 
+                zRIF = data[4]
+                propItem = etree.SubElement(pkgItem, 'zRIF')
+                propItem.text = zRIF
+                
+                ## get titleType
+                titleType = appType
+                propItem = etree.SubElement(pkgItem, 'titleType')
+                propItem.text = titleType
+                
+                ## get fileSize
+                try:
+                    openedUrl = urllib2.urlopen(downloadURL)
+                    urlInfo = openedUrl.info()
+                    fileSize = int(urlInfo["Content-Length"])
+                except:
+                    fileSize = ''
+                #fileSize = 0
+                propItem = etree.SubElement(pkgItem, 'fileSize')
+                propItem.text = str(fileSize)
+
+        ## serialize the xml
+        fd = open(self.database, 'w')
+        
+        fd.write(etree.tostring(rootItem, pretty_print=True))
+        
+        fd.close()
+        print 'import done'
+            
     def GetPkgsData(self, *args):
         pkgData = []
         code = 0
