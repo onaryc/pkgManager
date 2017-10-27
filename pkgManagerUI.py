@@ -52,25 +52,23 @@ class UI(wx.Frame):
 
         # Setting up the menu
         ## file menu
-        self.ID_FILE_IMPORT_GAMES = wx.NewId()
-        self.ID_FILE_IMPORT_DLCS = wx.NewId()
-        self.ID_FILE_IMPORT_UPDATES = wx.NewId()
+        self.ID_RESET_DB = wx.NewId()
+        self.ID_IMPORT_GAMES = wx.NewId()
+        self.ID_IMPORT_DLCS = wx.NewId()
+        self.ID_IMPORT_UPDATES = wx.NewId()
         
         fileMenu = wx.Menu()
-        fileMenu.Append(self.ID_FILE_IMPORT_GAMES,"Import Games"," Import Games")
-        fileMenu.Append(self.ID_FILE_IMPORT_DLCS,"Import DLCs"," Import DLC")
-        fileMenu.Append(self.ID_FILE_IMPORT_UPDATES,"Import Updates"," Import Updates")
-        fileMenu.AppendSeparator()
+        
+        #fileMenu.AppendSeparator()
         menuExit = fileMenu.Append(wx.ID_EXIT,"E&xit"," Close Pkg Manager")
 
-        ## edit menu
-        #editMenu = wx.Menu()
-        #menuConfiguration = editMenu.Append(ID_MENU_SETTINGS,"Settings"," Settings")
-
-        ## tools menu
-        #toolsMenu = wx.Menu()
-        #menuToolsRename = toolsMenu.Append(ID_MENU_RENAME_ALL,"Rename All"," rename all pkg")
-        #menuToolsDownload = toolsMenu.Append(ID_MENU_DOWNLOAD_ALL,"Download All"," download all pkg")
+        ## database menu
+        dbMenu = wx.Menu()
+        menuResetDB = dbMenu.Append(self.ID_RESET_DB,"Reset"," Reset Database")
+        dbMenu.AppendSeparator()
+        menuImportGames = dbMenu.Append(self.ID_IMPORT_GAMES,"Import Games"," Import Games")
+        menuImportDLCs = dbMenu.Append(self.ID_IMPORT_DLCS,"Import DLCs"," Import DLC")
+        menuImportUpdates = dbMenu.Append(self.ID_IMPORT_UPDATES,"Import Updates"," Import Updates")
 
         # other menu
         otherMenu = wx.Menu()
@@ -81,21 +79,21 @@ class UI(wx.Frame):
 
         ## adding menu to the menu bar
         menuBar.Append(fileMenu,"&File")
-        #menuBar.Append(toolsMenu,"&Tools")
-        #menuBar.Append(editMenu,"&Edit")
+        menuBar.Append(dbMenu,"Database")
         menuBar.Append(otherMenu,"&?")
         self.SetMenuBar(menuBar)  # Adding the MenuBar to the Frame content.
 
         # Set events.
-        self.Bind(wx.EVT_MENU, self.OnImport)
-        self.Bind(wx.EVT_MENU, self.OnImport)
-        self.Bind(wx.EVT_MENU, self.OnImport)
+        self.Bind(wx.EVT_MENU, self.OnResetDB, menuResetDB)
+        self.Bind(wx.EVT_MENU, self.OnImport, menuImportGames)
+        self.Bind(wx.EVT_MENU, self.OnImport, menuImportDLCs)
+        self.Bind(wx.EVT_MENU, self.OnImport, menuImportUpdates)
         self.Bind(wx.EVT_MENU, self.OnAbout, menuAbout)
         self.Bind(wx.EVT_MENU, self.OnExit, menuExit)
         
         self.Bind(wx.EVT_CLOSE, self.OnExit)
 
-
+        ## contruct the notebook
         self.notebook = wx.Notebook(self)
 
         self.panelPkg = PkgFilesView(self.notebook)
@@ -105,7 +103,8 @@ class UI(wx.Frame):
         self.notebook.AddPage(self.panelPkg, "Pkg Files")
         self.notebook.AddPage(self.panelVita, "Vita Files")
         self.notebook.AddPage(self.panelSettings, "Settings")
-        
+
+        ## subscribe to api ctrl
         API.Subscribe('SendUIMessage', lambda args: self.SendUIMessage(*args))
 
         self.updateUI = UpdateUI(self)
@@ -144,14 +143,23 @@ class UI(wx.Frame):
         if result == wx.ID_OK:
             self.Stop()
 
+    def OnResetDB(self, event):
+        dlg = wx.MessageDialog(self, 
+            "Do you really want to reset the pkg database?",
+            "Confirm DB Reset", wx.OK|wx.CANCEL|wx.ICON_QUESTION)
+        result = dlg.ShowModal()
+        dlg.Destroy()
+        if result == wx.ID_OK:
+            API.Send('ResetDB')
+            
     def OnImport(self, event):
         itemId = event.GetId()
         importType = ''
-        if itemId == self.ID_FILE_IMPORT_GAMES:
+        if itemId == self.ID_IMPORT_GAMES:
             importType = 'game'
-        elif itemId == self.ID_FILE_IMPORT_DLCS:
+        elif itemId == self.ID_IMPORT_DLCS:
             importType = 'dlc'
-        elif itemId == self.ID_FILE_IMPORT_UPDATES:
+        elif itemId == self.ID_IMPORT_UPDATES:
             importType = 'update'
 
         if importType != '':
@@ -566,18 +574,23 @@ class SettingsView(wx.Panel):
         self.pkgDirectory.Bind(wx.EVT_DIRPICKER_CHANGED, self.OnSetPkgDir)
         self.vitaDirectory = wx.DirPickerCtrl(self, style = wx.DIRP_DEFAULT_STYLE|wx.DIRP_DIR_MUST_EXIST, message = 'Select the vita Directory')
         self.vitaDirectory.Bind(wx.EVT_DIRPICKER_CHANGED, self.OnSetVitaDir)
-        self.pkgGameFile = wx.FilePickerCtrl(self, message = 'Select the game File')
-        self.pkgGameFile.Bind(wx.EVT_FILEPICKER_CHANGED, self.OnSetGameFile)
-        self.pkgDLCFile = wx.FilePickerCtrl(self, message = 'Select the DLC File')
-        self.pkgDLCFile.Bind(wx.EVT_FILEPICKER_CHANGED, self.OnSetDLCFile)
-        self.pkgUpdateFile = wx.FilePickerCtrl(self, message = 'Select the update File')
-        self.pkgUpdateFile.Bind(wx.EVT_FILEPICKER_CHANGED, self.OnSetUpdateFile)
+
+        self.pkgDBFile = wx.FilePickerCtrl(self, message = 'Select the database File')
+        self.pkgDBFile.Bind(wx.EVT_FILEPICKER_CHANGED, self.OnSetDBFile)
+        #self.pkgGameFile = wx.FilePickerCtrl(self, message = 'Select the game File')
+        #self.pkgGameFile.Bind(wx.EVT_FILEPICKER_CHANGED, self.OnSetGameFile)
+        #self.pkgDLCFile = wx.FilePickerCtrl(self, message = 'Select the DLC File')
+        #self.pkgDLCFile.Bind(wx.EVT_FILEPICKER_CHANGED, self.OnSetDLCFile)
+        #self.pkgUpdateFile = wx.FilePickerCtrl(self, message = 'Select the update File')
+        #self.pkgUpdateFile.Bind(wx.EVT_FILEPICKER_CHANGED, self.OnSetUpdateFile)
 
         text1 = wx.StaticText(self, label = 'Pkg Directory') 
-        text2 = wx.StaticText(self, label = 'Vita Directory') 
-        text3 = wx.StaticText(self, label = 'Game File')
-        text4 = wx.StaticText(self, label = 'DLC File')
-        text5 = wx.StaticText(self, label = 'Update File')
+        text2 = wx.StaticText(self, label = 'Vita Directory')
+        text3 = wx.StaticText(self, label = 'Database File')
+        
+        #text3 = wx.StaticText(self, label = 'Game File')
+        #text4 = wx.StaticText(self, label = 'DLC File')
+        #text5 = wx.StaticText(self, label = 'Update File')
 
         ## configure the sizers
         textFlags = wx.SizerFlags(0)
@@ -599,17 +612,21 @@ class SettingsView(wx.Panel):
         vitaDirectorySizer.Add(text2, textFlags)
         vitaDirectorySizer.Add(self.vitaDirectory, browserFlags)
         
-        pkgGameFileSizer = wx.BoxSizer(wx.HORIZONTAL)
-        pkgGameFileSizer.Add(text3, textFlags)
-        pkgGameFileSizer.Add(self.pkgGameFile, browserFlags)
+        pkgDBFileSizer = wx.BoxSizer(wx.HORIZONTAL)
+        pkgDBFileSizer.Add(text3, textFlags)
+        pkgDBFileSizer.Add(self.pkgDBFile, browserFlags)
         
-        pkgDLCFileSizer = wx.BoxSizer(wx.HORIZONTAL)
-        pkgDLCFileSizer.Add(text4, textFlags)
-        pkgDLCFileSizer.Add(self.pkgDLCFile, browserFlags)
+        #pkgGameFileSizer = wx.BoxSizer(wx.HORIZONTAL)
+        #pkgGameFileSizer.Add(text3, textFlags)
+        #pkgGameFileSizer.Add(self.pkgGameFile, browserFlags)
         
-        pkgUpdateFileSizer = wx.BoxSizer(wx.HORIZONTAL)
-        pkgUpdateFileSizer.Add(text5, textFlags)
-        pkgUpdateFileSizer.Add(self.pkgUpdateFile, browserFlags)
+        #pkgDLCFileSizer = wx.BoxSizer(wx.HORIZONTAL)
+        #pkgDLCFileSizer.Add(text4, textFlags)
+        #pkgDLCFileSizer.Add(self.pkgDLCFile, browserFlags)
+        
+        #pkgUpdateFileSizer = wx.BoxSizer(wx.HORIZONTAL)
+        #pkgUpdateFileSizer.Add(text5, textFlags)
+        #pkgUpdateFileSizer.Add(self.pkgUpdateFile, browserFlags)
         
         ## save ini file button definition and sizer
         self.saveButton = wx.Button(self, id = ID_BUTTON_SAVE_INI, label='Save Ini')
@@ -626,9 +643,10 @@ class SettingsView(wx.Panel):
         mainSizer = wx.BoxSizer(wx.VERTICAL)
         mainSizer.Add(pkgDirectorySizer, mixFlags)
         mainSizer.Add(vitaDirectorySizer, mixFlags)
-        mainSizer.Add(pkgGameFileSizer, mixFlags)
-        mainSizer.Add(pkgDLCFileSizer, mixFlags)
-        mainSizer.Add(pkgUpdateFileSizer, mixFlags)
+        mainSizer.Add(pkgDBFileSizer, mixFlags)
+        #mainSizer.Add(pkgGameFileSizer, mixFlags)
+        #mainSizer.Add(pkgDLCFileSizer, mixFlags)
+        #mainSizer.Add(pkgUpdateFileSizer, mixFlags)
         mainSizer.Add(buttonSizer, 0, wx.LEFT, 0)
 
         self.SetSizerAndFit(mainSizer)
@@ -640,14 +658,17 @@ class SettingsView(wx.Panel):
         vitaDirectory = API.Send('GetVitaDirectory')
         self.vitaDirectory.SetPath(vitaDirectory)
 
-        gameFile = API.Send('GetGameFile')
-        self.pkgGameFile.SetPath(gameFile)
+        dbFile = API.Send('GetDBFile')
+        self.pkgDBFile.SetPath(dbFile)
         
-        dlcFile = API.Send('GetDLCFile')
-        self.pkgDLCFile.SetPath(dlcFile)
+        #gameFile = API.Send('GetGameFile')
+        #self.pkgGameFile.SetPath(gameFile)
         
-        updateFile = API.Send('GetUpdateFile')
-        self.pkgUpdateFile.SetPath(updateFile)
+        #dlcFile = API.Send('GetDLCFile')
+        #self.pkgDLCFile.SetPath(dlcFile)
+        
+        #updateFile = API.Send('GetUpdateFile')
+        #self.pkgUpdateFile.SetPath(updateFile)
         
     def OnResetIni(self, event):
         pkgDirectory = API.Send('GetIniValue', 'pkgDirectory')
@@ -656,28 +677,32 @@ class SettingsView(wx.Panel):
         vitaDirectory = API.Send('GetIniValue', 'vitaDirectory')
         self.vitaDirectory.SetPath(vitaDirectory)
 
-        gameFile = API.Send('GetIniValue', 'pkgGameFile')
-        self.pkgGameFile.SetPath(gameFile)
+        dbFile = API.Send('GetIniValue', 'pkgDBFile')
+        self.pkgDBFile.SetPath(dbFile)
+        #gameFile = API.Send('GetIniValue', 'pkgGameFile')
+        #self.pkgGameFile.SetPath(gameFile)
         
-        dlcFile = API.Send('GetIniValue', 'pkgDLCFile')
-        self.pkgDLCFile.SetPath(dlcFile)
+        #dlcFile = API.Send('GetIniValue', 'pkgDLCFile')
+        #self.pkgDLCFile.SetPath(dlcFile)
         
-        updateFile = API.Send('GetIniValue', 'pkgUpdateFile')
-        self.pkgUpdateFile.SetPath(updateFile)
+        #updateFile = API.Send('GetIniValue', 'pkgUpdateFile')
+        #self.pkgUpdateFile.SetPath(updateFile)
         
     def OnSaveIni(self, event):
         ## set the new values
         pkgDirectory = self.pkgDirectory.GetPath()
         API.Send('SetIniValue', 'pkgDirectory', pkgDirectory)
         
-        pkgGameFile = self.pkgGameFile.GetPath()
-        API.Send('SetIniValue', 'pkgGameFile', pkgGameFile)
+        pkgDBFile = self.pkgDBFile.GetPath()
+        API.Send('SetIniValue', 'pkgDBFile', pkgDBFile)
+        #pkgGameFile = self.pkgGameFile.GetPath()
+        #API.Send('SetIniValue', 'pkgGameFile', pkgGameFile)
         
-        pkgDLCFile = self.pkgDLCFile.GetPath()
-        API.Send('SetIniValue', 'pkgDLCFile', pkgDLCFile)
+        #pkgDLCFile = self.pkgDLCFile.GetPath()
+        #API.Send('SetIniValue', 'pkgDLCFile', pkgDLCFile)
         
-        pkgUpdateFile = self.pkgUpdateFile.GetPath()
-        API.Send('SetIniValue', 'pkgUpdateFile', pkgUpdateFile)
+        #pkgUpdateFile = self.pkgUpdateFile.GetPath()
+        #API.Send('SetIniValue', 'pkgUpdateFile', pkgUpdateFile)
         
         vitaDirectory = self.vitaDirectory.GetPath()
         API.Send('SetIniValue', 'vitaDirectory', vitaDirectory)
@@ -696,14 +721,17 @@ class SettingsView(wx.Panel):
         vitaDirectory = self.vitaDirectory.GetPath()
         API.Send('SetVitaDirectory', vitaDirectory)
         
-    def OnSetGameFile(self, event):
-        pkgGameFile = self.pkgGameFile.GetPath()
-        API.Send('SetGameFile', pkgGameFile)
+    def OnSetDBFile(self, event):
+        pkgDBFile = self.pkgDBFile.GetPath()
+        API.Send('SetDBFile', pkgDBFile)
+    #def OnSetGameFile(self, event):
+        #pkgGameFile = self.pkgGameFile.GetPath()
+        #API.Send('SetGameFile', pkgGameFile)
         
-    def OnSetDLCFile(self, event):
-        pkgDLCFile = self.pkgDLCFile.GetPath()
-        API.Send('SetDLCFile', pkgDLCFile)
+    #def OnSetDLCFile(self, event):
+        #pkgDLCFile = self.pkgDLCFile.GetPath()
+        #API.Send('SetDLCFile', pkgDLCFile)
     
-    def OnSetUpdateFile(self, event):
-        pkgUpdateFile = self.pkgUpdateFile.GetPath()
-        API.Send('SetUpdateFile', pkgUpdateFile)
+    #def OnSetUpdateFile(self, event):
+        #pkgUpdateFile = self.pkgUpdateFile.GetPath()
+        #API.Send('SetUpdateFile', pkgUpdateFile)

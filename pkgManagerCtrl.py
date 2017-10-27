@@ -42,14 +42,11 @@ class Controllers():
         #~ API.Send('ParseIni')
 
         pkgDirectory, code, message = self.iniCtrl.GetValue('pkgDirectory')
-        pkgGameFile, code, message = self.iniCtrl.GetValue('pkgGameFile')
-        print 'pkgGameFile', pkgGameFile
-        pkgDLCFile, code, message = self.iniCtrl.GetValue('pkgDLCFile')
-        pkgUpdateFile, code, message = self.iniCtrl.GetValue('pkgUpdateFile')
+        pkgDBFile, code, message = self.iniCtrl.GetValue('pkgDBFile')
         vitaDirectory, code, message = self.iniCtrl.GetValue('vitaDirectory')
         nbDownloadQueues, code, message = self.iniCtrl.GetValue('nbDownloadQueues')
 
-        self.pkgCtrl = PkgCtrl(pkgDirectory, pkgGameFile, pkgDLCFile, pkgUpdateFile)
+        self.pkgCtrl = PkgCtrl(pkgDirectory, pkgDBFile)
         self.vitaCtrl = VitaCtrl(vitaDirectory)
         self.DownloadCtrl = DownloadCtrl(nbDownloadQueues)
         
@@ -89,14 +86,11 @@ class DataCtrl():
         return res, code, message
         
 class PkgCtrl(DataCtrl):
-    def __init__(self, directory, gameFile, dlcFile, updateFile):
+    def __init__(self, directory, dbFile):
         DataCtrl.__init__(self)
         
         self.directory = directory
-        self.database = 'config/database.xml'
-        self.gameFile = gameFile
-        self.dlcFile = dlcFile
-        self.updateFile = updateFile
+        self.database = dbFile
         
         self.pkgs = []
         #self.renamePkg = 'bin\\renamePkg.exe'
@@ -105,6 +99,7 @@ class PkgCtrl(DataCtrl):
         API.Subscribe('RefreshPkgsData', lambda args: self.RefreshPkgsData(*args))
         API.Subscribe('GetPkgsData', lambda args: self.GetPkgsData(*args))
         API.Subscribe('ImportNPS', lambda args: self.ImportNPS(*args))
+        API.Subscribe('ResetDB', lambda args: self.ResetDB(*args))
 
         API.Subscribe('RenamePkgFile', lambda args: self.RenamePkgFile(*args))
         
@@ -113,8 +108,10 @@ class PkgCtrl(DataCtrl):
         API.Subscribe('GetPkgDirectory', lambda args: self.GetDirectory(*args))
         API.Subscribe('SetPkgDirectory', lambda args: self.SetDirectory(*args))
 
-        API.Subscribe('GetGameFile', lambda args: self.GetGameFile(*args))
-        API.Subscribe('SetGameFile', lambda args: self.SetGameFile(*args))
+        API.Subscribe('GetDBFile', lambda args: self.GetDBFile(*args))
+        API.Subscribe('SetDBFile', lambda args: self.SetDBFile(*args))
+
+        self.LoadDB()
 
     def GetDirectory(self, *args):
         return self.directory, 0, ''
@@ -134,29 +131,82 @@ class PkgCtrl(DataCtrl):
             
         return res, 0, ''
         
-    def GetGameFile(self, *args):
-        return self.gameFile, 0, ''
+    def GetDBFile(self, *args):
+        return self.database, 0, ''
     
-    def SetGameFile(self, *args):
-        self.gameFile = args[0]
+    def SetDBFile(self, *args):
+        self.database = args[0]
         
         return '', 0, ''
         
-    def GetDLCFile(self, *args):
-        return self.dlcFile, 0, ''
-    
-    def SetDLCFile(self, *args):
-        self.dlcFile = args[0]
+    def ResetDB(self, *args):
+        res = ''
+        code = 0
+        message = ''
         
-        return '', 0, ''
+        if (self.database != None) and (self.database != ''):
+            rootItem = etree.Element('vitaDB')
+
+            ## serialize the xml
+            fd = open(self.database, 'w')
+            
+            fd.write(etree.tostring(rootItem, pretty_print=True))
+            
+            fd.close()
+        else:
+            code = -1
+            message = 'Database filename is empty'
+            
+        return res, code, message
+
+    def SearchXml(self, name, value, xmlTree):
+        search = xmlTree.xpath("/vitaDB/vitaPkg["+name+"='"+value+"']")
+
+        return search
         
-    def GetUpdateFile(self, *args):
-        return self.updateFile, 0, ''
-    
-    def SetUpdateFile(self, *args):
-        self.updateFile = args[0]
+    def SearchID(self, titleId, xmlTree):
+        search = xmlTree.xpath("/vitaDB/vitaPkg[@id='"+titleId+"']")
+
+        return search
         
-        return '', 0, ''
+    def SearchRegion(self, region, xmlTree):
+        search = xmlTree.xpath("/vitaDB/vitaPkg[titleRegion='"+region+"']")
+
+        return search
+        
+    def SearchType(self, stype, xmlTree):
+        search = xmlTree.xpath("/vitaDB/vitaPkg[@type='"+stype+"']")
+
+        return search
+        
+    def LoadDB(self):
+        if (self.database != None) or (self.database != ''):
+            if (exists(self.database) == True) and (isfile(self.database) == True):
+                xmlTree = etree.parse(self.database)
+                #root = tree.getroot()
+
+                #for vitaPkg in xmlTree.xpath("/vitaDB/vitaPkg[titleRegion='US']/titleName"):
+                #for vitaPkg in xmlTree.xpath("/vitaDB/vitaPkg[@id='PCSA00003']"):
+                #for vitaPkg in xmlTree.xpath("/vitaDB/vitaPkg"):
+                    #print 'vitaPkg', vitaPkg
+                    #print 'attributes', vitaPkg.attrib
+                    #pkgFile = PkgFile(filename = pkgFile, fileSize = size, validity = validity, downloadURL = 'http://zeus.dl.playstation.net/cdn/EP0850/PCSB00779_00/EP0850-PCSB00779_00-AXIOMVERGE000000_bg_1_de788236d479ef1856369b4fc5870b918f2150f8.pkg')
+                    #self.pkgs.append(pkgFile)
+
+                search = self.SearchID("PCSA00003", xmlTree)
+                print 'search', search
+                #search = self.SearchRegion("US", xmlTree)
+                #print 'search', search
+                #search = self.SearchType("game", xmlTree)
+                #print 'search', search
+                
+                    
+            else:
+                code = 0
+                message = 'Database file does not exists or is not a file'
+        else:
+            code = -1
+            message = 'No database file'
 
     def RefreshPkgsData(self, *args):
         code = 0
@@ -261,14 +311,23 @@ class PkgCtrl(DataCtrl):
         with open(filename, 'r') as f:
             for line in f:
                 pkgItem = etree.SubElement(rootItem, 'vitaPkg')
-
+            
                 ## get file data
                 data = line.split('\t')
 
+                ## attributes
+                
                 ## get titleID
                 titleID = data[0]
-                propItem = etree.SubElement(pkgItem, 'titleID')
-                propItem.text = titleID
+                pkgItem.set("id", titleID)
+                #propItem = etree.SubElement(pkgItem, 'titleID')
+                #propItem.text = titleID
+
+                ## get titleType
+                pkgItem.set("type", appType)
+                #propItem = etree.SubElement(pkgItem, 'titleType')
+                #propItem.text = appType
+                
 
                 ## get titleRegion 
                 titleRegion = data[1]
@@ -303,19 +362,14 @@ class PkgCtrl(DataCtrl):
                 propItem = etree.SubElement(pkgItem, 'zRIF')
                 propItem.text = zRIF
                 
-                ## get titleType
-                titleType = appType
-                propItem = etree.SubElement(pkgItem, 'titleType')
-                propItem.text = titleType
-                
                 ## get fileSize
-                try:
-                    openedUrl = urllib2.urlopen(downloadURL)
-                    urlInfo = openedUrl.info()
-                    fileSize = int(urlInfo["Content-Length"])
-                except:
-                    fileSize = ''
-                #fileSize = 0
+                #try:
+                    #openedUrl = urllib2.urlopen(downloadURL)
+                    #urlInfo = openedUrl.info()
+                    #fileSize = int(urlInfo["Content-Length"])
+                #except:
+                    #fileSize = ''
+                fileSize = 0
                 propItem = etree.SubElement(pkgItem, 'fileSize')
                 propItem.text = str(fileSize)
 
