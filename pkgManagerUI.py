@@ -53,9 +53,12 @@ class UI(wx.Frame):
         # Setting up the menu
         ## file menu
         self.ID_RESET_DB = wx.NewId()
+        self.ID_SAVE_DB = wx.NewId()
         self.ID_IMPORT_GAMES = wx.NewId()
         self.ID_IMPORT_DLCS = wx.NewId()
         self.ID_IMPORT_UPDATES = wx.NewId()
+        self.ID_IMPORT_PSMS = wx.NewId()
+        self.ID_IMPORT_PKGI = wx.NewId()
         
         fileMenu = wx.Menu()
         
@@ -65,10 +68,14 @@ class UI(wx.Frame):
         ## database menu
         dbMenu = wx.Menu()
         menuResetDB = dbMenu.Append(self.ID_RESET_DB,"Reset"," Reset Database")
+        menuSaveDB = dbMenu.Append(self.ID_SAVE_DB,"Save"," Save Database")
         dbMenu.AppendSeparator()
-        menuImportGames = dbMenu.Append(self.ID_IMPORT_GAMES,"Import Games"," Import Games")
-        menuImportDLCs = dbMenu.Append(self.ID_IMPORT_DLCS,"Import DLCs"," Import DLC")
-        menuImportUpdates = dbMenu.Append(self.ID_IMPORT_UPDATES,"Import Updates"," Import Updates")
+        menuImportGames = dbMenu.Append(self.ID_IMPORT_GAMES,"Import NPS Games"," Import Games")
+        menuImportDLCs = dbMenu.Append(self.ID_IMPORT_DLCS,"Import NPS DLCs"," Import DLC")
+        menuImportUpdates = dbMenu.Append(self.ID_IMPORT_UPDATES,"Import NPS Updates"," Import Updates")
+        menuImportPSMs = dbMenu.Append(self.ID_IMPORT_PSMS,"Import PSM Games"," Import PSM Games")
+        dbMenu.AppendSeparator()
+        menuImportPKGI = dbMenu.Append(self.ID_IMPORT_PKGI,"Import PKGI"," Import PKGI file")
 
         # other menu
         otherMenu = wx.Menu()
@@ -85,6 +92,7 @@ class UI(wx.Frame):
 
         # Set events.
         self.Bind(wx.EVT_MENU, self.OnResetDB, menuResetDB)
+        self.Bind(wx.EVT_MENU, self.OnSaveDB, menuSaveDB)
         self.Bind(wx.EVT_MENU, self.OnImport, menuImportGames)
         self.Bind(wx.EVT_MENU, self.OnImport, menuImportDLCs)
         self.Bind(wx.EVT_MENU, self.OnImport, menuImportUpdates)
@@ -151,6 +159,15 @@ class UI(wx.Frame):
         dlg.Destroy()
         if result == wx.ID_OK:
             API.Send('ResetDB')
+            
+    def OnSaveDB(self, event):
+        dlg = wx.MessageDialog(self, 
+            "Do you really want to save the pkg database?",
+            "Confirm DB Save", wx.OK|wx.CANCEL|wx.ICON_QUESTION)
+        result = dlg.ShowModal()
+        dlg.Destroy()
+        if result == wx.ID_OK:
+            API.Send('SaveDB')
             
     def OnImport(self, event):
         itemId = event.GetId()
@@ -402,8 +419,8 @@ class PkgFilesView(wx.Panel):
         self.ID_STOP_BUTTON = wx.NewId()
             
         description = [ \
-            {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local Pkgs information'}, \
-            {'command': self.ClearPkgData, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local Pkgs information'}, \
+            {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh Pkgs information'}, \
+            {'command': self.ClearPkgData, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear Pkgs information'}, \
             {'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Rename selected Pkg files', 'state': 'disabled'}, \
             {'command': self.StartDownload, 'image': 'resources/go-bottom.png', 'tooltip': 'Download selected Pkg files', 'id':self.ID_START_BUTTON}, \
             {'command': self.StopDownload, 'image': 'resources/process-stop.png', 'tooltip': 'Stop download operations', 'id':self.ID_STOP_BUTTON, 'state': 'disabled'} \

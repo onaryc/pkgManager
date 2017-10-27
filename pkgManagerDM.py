@@ -93,6 +93,7 @@ class PkgFile(FWObject):
         {'name': 'fileSize', 'display': 'Size','default': 0, 'conversion': 'FWTools.ConvertBytes'}, \
         {'name': 'downloadURL', 'display': 'URL','default': ''}, \
         {'name': 'zRIF', 'display': 'zRIF','default': ''}, \
+        {'name': 'contentID', 'display': 'Content ID','default': ''}, \
         {'name': 'validity', 'default': ''}, \
         ]
         

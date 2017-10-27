@@ -90,7 +90,11 @@ class PkgCtrl(DataCtrl):
         DataCtrl.__init__(self)
         
         self.directory = directory
-        self.database = dbFile
+        self.dbFile = dbFile
+        #self.database = etree.fromstring('<vitaDB></vitaDB>')
+        #print 'self.database init', self.database
+        #self.database = etree.Element('vitaDB')
+        self.database = ''
         
         self.pkgs = []
         #self.renamePkg = 'bin\\renamePkg.exe'
@@ -100,6 +104,8 @@ class PkgCtrl(DataCtrl):
         API.Subscribe('GetPkgsData', lambda args: self.GetPkgsData(*args))
         API.Subscribe('ImportNPS', lambda args: self.ImportNPS(*args))
         API.Subscribe('ResetDB', lambda args: self.ResetDB(*args))
+        API.Subscribe('LoadDB', lambda args: self.LoadDB(*args))
+        API.Subscribe('SaveDB', lambda args: self.SaveDB(*args))
 
         API.Subscribe('RenamePkgFile', lambda args: self.RenamePkgFile(*args))
         
@@ -132,160 +138,175 @@ class PkgCtrl(DataCtrl):
         return res, 0, ''
         
     def GetDBFile(self, *args):
-        return self.database, 0, ''
+        return self.dbFile, 0, ''
     
     def SetDBFile(self, *args):
-        self.database = args[0]
+        self.dbFile = args[0]
         
         return '', 0, ''
+        
+    def CreateDB(self):
+        res = ''
+        code = 0
+        message = ''
+        
+        if (self.dbFile != None) and (self.dbFile != ''):
+            rootItem = etree.Element('vitaDB')
+
+            # serialize the xml
+            fd = open(self.dbFile, 'w')
+            
+            fd.write(etree.tostring(rootItem, pretty_print=True))
+            
+            fd.close()
+            
+            self.database = etree.parse(self.dbFile)
+            #print 'self.database', self.database, etree.Element('vitaDB')
+        else:
+            code = -1
+            message = 'Database filename is empty'
+            
+        return res, code, message
         
     def ResetDB(self, *args):
         res = ''
         code = 0
         message = ''
         
-        if (self.database != None) and (self.database != ''):
-            rootItem = etree.Element('vitaDB')
-
-            ## serialize the xml
-            fd = open(self.database, 'w')
-            
-            fd.write(etree.tostring(rootItem, pretty_print=True))
-            
-            fd.close()
+        if (self.dbFile != None) and (self.dbFile != ''):
+            #rootItem = self.database.getroot()
+            for vitaPkg in self.database.xpath("/vitaDB/vitaPkg"):
+            #for vitaPkg in rootItem:
+                self.RemoveDB(vitaPkg)
         else:
             code = -1
             message = 'Database filename is empty'
             
         return res, code, message
-
-    def SearchXml(self, name, value, xmlTree):
-        search = xmlTree.xpath("/vitaDB/vitaPkg["+name+"='"+value+"']")
-
-        return search
         
-    def SearchID(self, titleId, xmlTree):
-        search = xmlTree.xpath("/vitaDB/vitaPkg[@id='"+titleId+"']")
-
-        return search
+    def LoadDB(self, *args):
+        print 'Load DB'
+        res = ''
+        code = 0
+        message = ''
         
-    def SearchRegion(self, region, xmlTree):
-        search = xmlTree.xpath("/vitaDB/vitaPkg[titleRegion='"+region+"']")
-
-        return search
+        if (self.dbFile != None) or (self.dbFile != ''):
+            if (exists(self.dbFile) == True) and (isfile(self.dbFile) == True):
+                try: ## if the xml file is malformed
+                    self.database = etree.parse(self.dbFile)
+                    print 'self.database', self.database
+                except:
+                    pass
+            else:
+                code = -1
+                message = 'Database file does not exists or is not a file'
+        else:
+            code = -1
+            message = 'No database file'
+            
+        if self.database == '':
+            self.CreateDB()
         
-    def SearchType(self, stype, xmlTree):
-        search = xmlTree.xpath("/vitaDB/vitaPkg[@type='"+stype+"']")
-
-        return search
+        return res, code, message
         
-    def LoadDB(self):
-        if (self.database != None) or (self.database != ''):
-            if (exists(self.database) == True) and (isfile(self.database) == True):
-                xmlTree = etree.parse(self.database)
-                #root = tree.getroot()
-
-                #for vitaPkg in xmlTree.xpath("/vitaDB/vitaPkg[titleRegion='US']/titleName"):
-                #for vitaPkg in xmlTree.xpath("/vitaDB/vitaPkg[@id='PCSA00003']"):
-                #for vitaPkg in xmlTree.xpath("/vitaDB/vitaPkg"):
-                    #print 'vitaPkg', vitaPkg
-                    #print 'attributes', vitaPkg.attrib
-                    #pkgFile = PkgFile(filename = pkgFile, fileSize = size, validity = validity, downloadURL = 'http://zeus.dl.playstation.net/cdn/EP0850/PCSB00779_00/EP0850-PCSB00779_00-AXIOMVERGE000000_bg_1_de788236d479ef1856369b4fc5870b918f2150f8.pkg')
-                    #self.pkgs.append(pkgFile)
-
-                search = self.SearchID("PCSA00003", xmlTree)
-                print 'search', search
-                #search = self.SearchRegion("US", xmlTree)
-                #print 'search', search
-                #search = self.SearchType("game", xmlTree)
-                #print 'search', search
-                
-                    
+    def SaveDB(self, *args):
+        res = ''
+        code = 0
+        message = ''
+        
+        if (self.dbFile != None) or (self.dbFile != ''):
+            if (exists(self.dbFile) == True) and (isfile(self.dbFile) == True):
+                rootItem = self.database.getroot()
+                fd = open(self.dbFile, 'w')
+        
+                fd.write(etree.tostring(rootItem, pretty_print=True))
+        
+                fd.close()
             else:
                 code = 0
                 message = 'Database file does not exists or is not a file'
         else:
             code = -1
             message = 'No database file'
+        
+        return res, code, message
+
+    def SearchDB(self, name, value):
+        search = self.database.xpath("/vitaDB/vitaPkg[@"+name+"='"+value+"']")
+
+        return search
+        
+    def RemoveDB(self, item):
+        #self.database.getroot().remove(item)
+        item.getparent().remove(item)
+        
+    #def SearchID(self, titleId, xmlTree):
+        #search = xmlTree.xpath("/vitaDB/vitaPkg[@id='"+titleId+"']")
+
+        #return search
+        
+    #def SearchRegion(self, region, xmlTree):
+        #search = xmlTree.xpath("/vitaDB/vitaPkg[titleRegion='"+region+"']")
+
+        #return search
+        
+    #def SearchType(self, stype, xmlTree):
+        #search = xmlTree.xpath("/vitaDB/vitaPkg[@type='"+stype+"']")
+
+        #return search
 
     def RefreshPkgsData(self, *args):
         code = 0
         message = ''
-        
-        ## test if the specified pkg directory is a directory and exists
-        if (self.directory != None) or (self.directory != ''):
-            if (exists(self.directory) == True) and (isdir(self.directory) == True):
-                self.pkgs = []
 
-                pkgFiles = FWTools.GetListFiles('.pkg', self.directory)
-                for pkgFile in pkgFiles:
-                    ## gather all information for pkg
-                    size = FWTools.GetFileSize(join(self.directory, pkgFile))
-
-                    ## TODO : get the validity of the pkg : local, local and not a pkg, distant pkg (when nopaystation data will be integrated)
-                    validity = 'local'
-                    #validity = 'localError'
-                    #validity = 'distant'
-                    #validity = 'distantNoUrl'
-                    
-                    ## TODO : call to a sfo parser in pkg to get all needed info
-                    pkgFile = PkgFile(filename = pkgFile, fileSize = size, validity = validity, downloadURL = 'http://zeus.dl.playstation.net/cdn/EP0850/PCSB00779_00/EP0850-PCSB00779_00-AXIOMVERGE000000_bg_1_de788236d479ef1856369b4fc5870b918f2150f8.pkg')
-                    self.pkgs.append(pkgFile)
+        if self.database != '':
+            self.pkgs = []
+            for vitaPkg in self.database.xpath("/vitaDB/vitaPkg"):
+                #print 'attributes', vitaPkg.attrib
+                contentID = vitaPkg.attrib['contentId']
+                titleID = vitaPkg.attrib['titleId']
+                titleType = vitaPkg.attrib['type']
+                titleName = vitaPkg.attrib['titleName']
+                titleRegion = vitaPkg.attrib['titleRegion']
+                filename = vitaPkg.attrib['filename']
+                fileSize = vitaPkg.attrib['fileSize']
+                downloadURL = vitaPkg.attrib['downloadURL']
+                zRIF = vitaPkg.attrib['zRIF']
+                validity = 'distant'
                 
-                #if (self.gameFile != None) and (self.gameFile != ''):
-                    #if (exists(self.gameFile) == True) and (isfile(self.gameFile) == True):
-                        #titleIDIndex = 0
-                        #titleRegionIndex = 1
-                        #titleNameIndex = 2
-                        #downloadURLIndex = 3
-                        #zRIFIndex = 4
-                        #with open(self.gameFile, 'r') as f:
-                            #for line in f:
-                                ##print line
-                                ### get file data
-                                #data = line.split('\t')
-                                ##print data 
-                                #titleID = data[titleIDIndex]
-                                #titleRegion = data[titleRegionIndex]
-                                #titleName = data[titleNameIndex]
-                                #downloadURL = data[downloadURLIndex]
-                                #zRIF = data[zRIFIndex]
+                pkgFile = PkgFile(contentID = contentID, titleID = titleID, titleType = titleType, titleName = titleName, titleRegion = titleRegion, filename = filename, fileSize = fileSize, downloadURL = downloadURL , zRIF = zRIF, validity = validity)
+                self.pkgs.append(pkgFile)
+            
+            ## test if the specified pkg directory is a directory and exists
+            #if (self.directory != None) or (self.directory != ''):
+                #if (exists(self.directory) == True) and (isdir(self.directory) == True):
+                    #self.pkgs = []
 
-                                ### remove special char from title name
-                                #titleName = titleName.translate(None, '®™ö®’ü')
-                                ##print 'titleName', titleName
-                                ##titleName = titleName.translate('o', 'ö')
-                                
-                                ### complete data
-                                #titleType = 'game'
-                                #if downloadURL != 'MISSING':
-                                    #filename = downloadURL.split('/')[-1]
-                                
-                                    #validity = 'distant'
-                                #else:
-                                    #filename = ''
-                                    #validity = 'distantNoUrl'
-                                ##try:
-                                    ##openedUrl = urllib2.urlopen(downloadURL)
-                                    ##urlInfo = openedUrl.info()
-                                    ##totalSize = int(urlInfo["Content-Length"])
-                                ##except:
-                                    ##totalSize = ''
-                                #totalSize = 0
-                                
-                                ### TODO shall search for existing pkg to complete info
-                                #pkgFile = PkgFile(titleID = titleID, titleType = titleType, titleName = titleName, titleRegion = titleRegion, filename = filename, fileSize = totalSize, downloadURL = downloadURL , zRIF = zRIF, validity = validity)
-                                #self.pkgs.append(pkgFile)
-            else:
-                code = -1
-                message = self.directory + ' is not a directory or does not exist'
-        else:
-            code = -1
-            message = 'Pkg directory is empty'
+                    #pkgFiles = FWTools.GetListFiles('.pkg', self.directory)
+                    #for pkgFile in pkgFiles:
+                        ### gather all information for pkg
+                        #size = FWTools.GetFileSize(join(self.directory, pkgFile))
+
+                        ### TODO : get the validity of the pkg : local, local and not a pkg, distant pkg (when nopaystation data will be integrated)
+                        #validity = 'local'
+                        ##validity = 'localError'
+                        ##validity = 'distant'
+                        ##validity = 'distantNoUrl'
+                        
+                        ### TODO : call to a sfo parser in pkg to get all needed info
+                        #pkgFile = PkgFile(filename = pkgFile, fileSize = size, validity = validity, downloadURL = 'http://zeus.dl.playstation.net/cdn/EP0850/PCSB00779_00/EP0850-PCSB00779_00-AXIOMVERGE000000_bg_1_de788236d479ef1856369b4fc5870b918f2150f8.pkg')
+                        #self.pkgs.append(pkgFile)
+                #else:
+                    #code = -1
+                    #message = self.directory + ' is not a directory or does not exist'
+            #else:
+                #code = -1
+                #message = 'Pkg directory is empty'
             
         return '', code, message
 
     def ImportNPS(self, *args):
+        print 'ImportNPS'
         res = ''
         code = 0
         message = ''
@@ -307,79 +328,76 @@ class PkgCtrl(DataCtrl):
         return res, code, message
 
     def ImportThread(self, filename, appType):
-        rootItem = etree.Element('vitaDB')
-        with open(filename, 'r') as f:
-            for line in f:
-                pkgItem = etree.SubElement(rootItem, 'vitaPkg')
-            
-                ## get file data
-                data = line.split('\t')
+        print 'ImportThread'
+        if self.database != '':
+            rootItem = self.database.getroot()
+            with open(filename, 'r') as f:
+                header = True
+                print 'import start'
+                for line in f:
+                    if header == True:
+                        header = False
+                    else:
+                        ## get file data
+                        data = line.split('\t')
+                        
+                        ## search if the pkg already exists
+                        pkgItem = self.SearchDB('contentId', data[5])
+                        #print 'pkgItem', data[5], 'res', pkgItem
+                        if pkgItem != []:
+                            pkgItem = pkgItem[0]
+                            #self.RemoveDB(pkgItem)
+                        else:
+                            pkgItem = etree.SubElement(rootItem, 'vitaPkg')
 
-                ## attributes
-                
-                ## get titleID
-                titleID = data[0]
-                pkgItem.set("id", titleID)
-                #propItem = etree.SubElement(pkgItem, 'titleID')
-                #propItem.text = titleID
+                        ## get content id
+                        pkgItem.set("contentId", data[5])
+                        
+                        ## get titleID
+                        pkgItem.set("titleId", data[0][0:9])
 
-                ## get titleType
-                pkgItem.set("type", appType)
-                #propItem = etree.SubElement(pkgItem, 'titleType')
-                #propItem.text = appType
-                
+                        ## get titleType
+                        pkgItem.set("type", appType)
 
-                ## get titleRegion 
-                titleRegion = data[1]
-                propItem = etree.SubElement(pkgItem, 'titleRegion')
-                propItem.text = titleRegion
+                        ## get titleRegion
+                        pkgItem.set("titleRegion", data[1])
 
-                ## get titleName
-                titleName = data[2]
-                propItem = etree.SubElement(pkgItem, 'titleName')
-                try: ## unicode pb
-                    ## remove/replace (TODO) special char from title name
-                    titleName = titleName.translate(None, '®™ö®’ü')
-                    #titleName = titleName.translate('o', 'ö')
+                        ## get titleName
+                        titleName = data[2]
+                        try: ## unicode pb
+                            ## remove/replace (TODO) special char from title name
+                            titleName = titleName.translate(None, '®™ö®’ü')
+                            #titleName = titleName.translate('o', 'ö')
 
-                    propItem.text = titleName
-                except:
-                    propItem.text = titleName = ''
+                            #propItem.text = titleName
+                            pkgItem.set("titleName", titleName)
+                        except:
+                            #propItem.text = titleName = ''
+                            pkgItem.set("titleName", '')
 
-                ## get downloadURL and filename
-                downloadURL = data[3]
-                if downloadURL != 'MISSING':
-                    filename = downloadURL.split('/')[-1]
-                else:
-                    filename = ''
-                propItem = etree.SubElement(pkgItem, 'downloadURL')
-                propItem.text = downloadURL
-                propItem = etree.SubElement(pkgItem, 'filename')
-                propItem.text = filename
+                        ## get downloadURL and filename
+                        downloadURL = data[3]
+                        if downloadURL != 'MISSING':
+                            filename = downloadURL.split('/')[-1]
+                        else:
+                            filename = ''
+                        pkgItem.set("downloadURL", downloadURL)
+                        pkgItem.set("filename", filename)
 
-                ## get zRIF 
-                zRIF = data[4]
-                propItem = etree.SubElement(pkgItem, 'zRIF')
-                propItem.text = zRIF
-                
-                ## get fileSize
-                #try:
-                    #openedUrl = urllib2.urlopen(downloadURL)
-                    #urlInfo = openedUrl.info()
-                    #fileSize = int(urlInfo["Content-Length"])
-                #except:
-                    #fileSize = ''
-                fileSize = 0
-                propItem = etree.SubElement(pkgItem, 'fileSize')
-                propItem.text = str(fileSize)
+                        ## get zRIF 
+                        pkgItem.set("zRIF", data[4])
+                        
+                        ## get fileSize
+                        #try:
+                            #openedUrl = urllib2.urlopen(downloadURL)
+                            #urlInfo = openedUrl.info()
+                            #fileSize = int(urlInfo["Content-Length"])
+                        #except:
+                            #fileSize = ''
+                        fileSize = 0
+                        pkgItem.set("fileSize", str(fileSize))
 
-        ## serialize the xml
-        fd = open(self.database, 'w')
-        
-        fd.write(etree.tostring(rootItem, pretty_print=True))
-        
-        fd.close()
-        print 'import done'
+            print 'import done'
             
     def GetPkgsData(self, *args):
         pkgData = []
