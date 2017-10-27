@@ -1,21 +1,29 @@
 #!/usr/bin/env python2
+# -*- coding: utf-8 -*-*
 
 try:
     import os
     from os.path import exists, isdir, isfile, join
 
-    import urllib
+    import sys
+    import time
+    import timeit
+    
+    #import urllib
+    import urllib2
     
     #from Queue import Queue
     #from multiprocessing import Lock, Process, Queue
-    from multiprocessing import Process
+    #from multiprocessing import Process
+    from threading import Thread, current_thread, Event
+    import Queue
     
     from lxml import etree
     
     import APICtrl as API
     import FWTools
     import pkgTools
-    from pkgManagerDM import PkgFile, VitaFile
+    from pkgManagerDM import PkgFile, VitaFile, DownloadFile
     from MessageTools import Print, DPrint, ManageMessage 
 except ImportError, e:
     assert False, 'import error in pkgManagerCtrl : {0}'.format(e)
@@ -34,13 +42,11 @@ class Controllers():
         #~ API.Send('ParseIni')
 
         pkgDirectory, code, message = self.iniCtrl.GetValue('pkgDirectory')
-        pkgGameFile, code, message = self.iniCtrl.GetValue('pkgGameFile')
-        pkgDLCFile, code, message = self.iniCtrl.GetValue('pkgDLCFile')
-        pkgUpdateFile, code, message = self.iniCtrl.GetValue('pkgUpdateFile')
+        pkgDBFile, code, message = self.iniCtrl.GetValue('pkgDBFile')
         vitaDirectory, code, message = self.iniCtrl.GetValue('vitaDirectory')
         nbDownloadQueues, code, message = self.iniCtrl.GetValue('nbDownloadQueues')
 
-        self.pkgCtrl = PkgCtrl(pkgDirectory, pkgGameFile, pkgDLCFile, pkgUpdateFile)
+        self.pkgCtrl = PkgCtrl(pkgDirectory, pkgDBFile)
         self.vitaCtrl = VitaCtrl(vitaDirectory)
         self.DownloadCtrl = DownloadCtrl(nbDownloadQueues)
         
@@ -71,6 +77,8 @@ class DataCtrl():
             res = PkgFile.GetClassVarsData()
         elif className == 'VitaFile':
             res = VitaFile.GetClassVarsData()
+        elif className == 'DownloadFile':
+            res = DownloadFile.GetClassVarsData()
         else:
             code = -1
             message = className + ' class does not exist'
@@ -78,13 +86,11 @@ class DataCtrl():
         return res, code, message
         
 class PkgCtrl(DataCtrl):
-    def __init__(self, directory, gameFile, dlcFile, updateFile):
+    def __init__(self, directory, dbFile):
         DataCtrl.__init__(self)
         
         self.directory = directory
-        self.gameFile = gameFile
-        self.dlcFile = dlcFile
-        self.updateFile = updateFile
+        self.database = dbFile
         
         self.pkgs = []
         #self.renamePkg = 'bin\\renamePkg.exe'
@@ -92,6 +98,8 @@ class PkgCtrl(DataCtrl):
  
         API.Subscribe('RefreshPkgsData', lambda args: self.RefreshPkgsData(*args))
         API.Subscribe('GetPkgsData', lambda args: self.GetPkgsData(*args))
+        API.Subscribe('ImportNPS', lambda args: self.ImportNPS(*args))
+        API.Subscribe('ResetDB', lambda args: self.ResetDB(*args))
 
         API.Subscribe('RenamePkgFile', lambda args: self.RenamePkgFile(*args))
         
@@ -100,8 +108,10 @@ class PkgCtrl(DataCtrl):
         API.Subscribe('GetPkgDirectory', lambda args: self.GetDirectory(*args))
         API.Subscribe('SetPkgDirectory', lambda args: self.SetDirectory(*args))
 
-        API.Subscribe('GetGameFile', lambda args: self.GetGameFile(*args))
-        API.Subscribe('SetGameFile', lambda args: self.SetGameFile(*args))
+        API.Subscribe('GetDBFile', lambda args: self.GetDBFile(*args))
+        API.Subscribe('SetDBFile', lambda args: self.SetDBFile(*args))
+
+        self.LoadDB()
 
     def GetDirectory(self, *args):
         return self.directory, 0, ''
@@ -121,29 +131,82 @@ class PkgCtrl(DataCtrl):
             
         return res, 0, ''
         
-    def GetGameFile(self, *args):
-        return self.gameFile, 0, ''
+    def GetDBFile(self, *args):
+        return self.database, 0, ''
     
-    def SetGameFile(self, *args):
-        self.gameFile = args[0]
+    def SetDBFile(self, *args):
+        self.database = args[0]
         
         return '', 0, ''
         
-    def GetDLCFile(self, *args):
-        return self.dlcFile, 0, ''
-    
-    def SetDLCFile(self, *args):
-        self.dlcFile = args[0]
+    def ResetDB(self, *args):
+        res = ''
+        code = 0
+        message = ''
         
-        return '', 0, ''
+        if (self.database != None) and (self.database != ''):
+            rootItem = etree.Element('vitaDB')
+
+            ## serialize the xml
+            fd = open(self.database, 'w')
+            
+            fd.write(etree.tostring(rootItem, pretty_print=True))
+            
+            fd.close()
+        else:
+            code = -1
+            message = 'Database filename is empty'
+            
+        return res, code, message
+
+    def SearchXml(self, name, value, xmlTree):
+        search = xmlTree.xpath("/vitaDB/vitaPkg["+name+"='"+value+"']")
+
+        return search
         
-    def GetUpdateFile(self, *args):
-        return self.updateFile, 0, ''
-    
-    def SetUpdateFile(self, *args):
-        self.updateFile = args[0]
+    def SearchID(self, titleId, xmlTree):
+        search = xmlTree.xpath("/vitaDB/vitaPkg[@id='"+titleId+"']")
+
+        return search
         
-        return '', 0, ''
+    def SearchRegion(self, region, xmlTree):
+        search = xmlTree.xpath("/vitaDB/vitaPkg[titleRegion='"+region+"']")
+
+        return search
+        
+    def SearchType(self, stype, xmlTree):
+        search = xmlTree.xpath("/vitaDB/vitaPkg[@type='"+stype+"']")
+
+        return search
+        
+    def LoadDB(self):
+        if (self.database != None) or (self.database != ''):
+            if (exists(self.database) == True) and (isfile(self.database) == True):
+                xmlTree = etree.parse(self.database)
+                #root = tree.getroot()
+
+                #for vitaPkg in xmlTree.xpath("/vitaDB/vitaPkg[titleRegion='US']/titleName"):
+                #for vitaPkg in xmlTree.xpath("/vitaDB/vitaPkg[@id='PCSA00003']"):
+                #for vitaPkg in xmlTree.xpath("/vitaDB/vitaPkg"):
+                    #print 'vitaPkg', vitaPkg
+                    #print 'attributes', vitaPkg.attrib
+                    #pkgFile = PkgFile(filename = pkgFile, fileSize = size, validity = validity, downloadURL = 'http://zeus.dl.playstation.net/cdn/EP0850/PCSB00779_00/EP0850-PCSB00779_00-AXIOMVERGE000000_bg_1_de788236d479ef1856369b4fc5870b918f2150f8.pkg')
+                    #self.pkgs.append(pkgFile)
+
+                search = self.SearchID("PCSA00003", xmlTree)
+                print 'search', search
+                #search = self.SearchRegion("US", xmlTree)
+                #print 'search', search
+                #search = self.SearchType("game", xmlTree)
+                #print 'search', search
+                
+                    
+            else:
+                code = 0
+                message = 'Database file does not exists or is not a file'
+        else:
+            code = -1
+            message = 'No database file'
 
     def RefreshPkgsData(self, *args):
         code = 0
@@ -163,18 +226,56 @@ class PkgCtrl(DataCtrl):
                     validity = 'local'
                     #validity = 'localError'
                     #validity = 'distant'
+                    #validity = 'distantNoUrl'
                     
                     ## TODO : call to a sfo parser in pkg to get all needed info
                     pkgFile = PkgFile(filename = pkgFile, fileSize = size, validity = validity, downloadURL = 'http://zeus.dl.playstation.net/cdn/EP0850/PCSB00779_00/EP0850-PCSB00779_00-AXIOMVERGE000000_bg_1_de788236d479ef1856369b4fc5870b918f2150f8.pkg')
                     self.pkgs.append(pkgFile)
                 
-                if (self.gameFile != None) or (self.gameFile != ''):
-                    if (exists(self.gameFile) == True) and (isfile(self.gameFile) == True):
-                        fd = open(self.gameFile, 'r')
-            
-                        fd.write(etree.tostring(root, pretty_print=True))
-                        
-                        fd.close()
+                #if (self.gameFile != None) and (self.gameFile != ''):
+                    #if (exists(self.gameFile) == True) and (isfile(self.gameFile) == True):
+                        #titleIDIndex = 0
+                        #titleRegionIndex = 1
+                        #titleNameIndex = 2
+                        #downloadURLIndex = 3
+                        #zRIFIndex = 4
+                        #with open(self.gameFile, 'r') as f:
+                            #for line in f:
+                                ##print line
+                                ### get file data
+                                #data = line.split('\t')
+                                ##print data 
+                                #titleID = data[titleIDIndex]
+                                #titleRegion = data[titleRegionIndex]
+                                #titleName = data[titleNameIndex]
+                                #downloadURL = data[downloadURLIndex]
+                                #zRIF = data[zRIFIndex]
+
+                                ### remove special char from title name
+                                #titleName = titleName.translate(None, '®™ö®’ü')
+                                ##print 'titleName', titleName
+                                ##titleName = titleName.translate('o', 'ö')
+                                
+                                ### complete data
+                                #titleType = 'game'
+                                #if downloadURL != 'MISSING':
+                                    #filename = downloadURL.split('/')[-1]
+                                
+                                    #validity = 'distant'
+                                #else:
+                                    #filename = ''
+                                    #validity = 'distantNoUrl'
+                                ##try:
+                                    ##openedUrl = urllib2.urlopen(downloadURL)
+                                    ##urlInfo = openedUrl.info()
+                                    ##totalSize = int(urlInfo["Content-Length"])
+                                ##except:
+                                    ##totalSize = ''
+                                #totalSize = 0
+                                
+                                ### TODO shall search for existing pkg to complete info
+                                #pkgFile = PkgFile(titleID = titleID, titleType = titleType, titleName = titleName, titleRegion = titleRegion, filename = filename, fileSize = totalSize, downloadURL = downloadURL , zRIF = zRIF, validity = validity)
+                                #self.pkgs.append(pkgFile)
             else:
                 code = -1
                 message = self.directory + ' is not a directory or does not exist'
@@ -184,6 +285,102 @@ class PkgCtrl(DataCtrl):
             
         return '', code, message
 
+    def ImportNPS(self, *args):
+        res = ''
+        code = 0
+        message = ''
+        
+        filename = args[0]
+        appType = args[1]
+        
+        if (filename != None) and (filename != ''):
+            if (exists(filename) == True) and (isfile(filename) == True):
+                thread = Thread(target=self.ImportThread, args=(filename,appType,))
+                thread.start()
+            else:
+                code = -1
+                message = filename + ' is not a file or does not exist'
+        else:
+            code = -1
+            message = 'Filename is empty'
+            
+        return res, code, message
+
+    def ImportThread(self, filename, appType):
+        rootItem = etree.Element('vitaDB')
+        with open(filename, 'r') as f:
+            for line in f:
+                pkgItem = etree.SubElement(rootItem, 'vitaPkg')
+            
+                ## get file data
+                data = line.split('\t')
+
+                ## attributes
+                
+                ## get titleID
+                titleID = data[0]
+                pkgItem.set("id", titleID)
+                #propItem = etree.SubElement(pkgItem, 'titleID')
+                #propItem.text = titleID
+
+                ## get titleType
+                pkgItem.set("type", appType)
+                #propItem = etree.SubElement(pkgItem, 'titleType')
+                #propItem.text = appType
+                
+
+                ## get titleRegion 
+                titleRegion = data[1]
+                propItem = etree.SubElement(pkgItem, 'titleRegion')
+                propItem.text = titleRegion
+
+                ## get titleName
+                titleName = data[2]
+                propItem = etree.SubElement(pkgItem, 'titleName')
+                try: ## unicode pb
+                    ## remove/replace (TODO) special char from title name
+                    titleName = titleName.translate(None, '®™ö®’ü')
+                    #titleName = titleName.translate('o', 'ö')
+
+                    propItem.text = titleName
+                except:
+                    propItem.text = titleName = ''
+
+                ## get downloadURL and filename
+                downloadURL = data[3]
+                if downloadURL != 'MISSING':
+                    filename = downloadURL.split('/')[-1]
+                else:
+                    filename = ''
+                propItem = etree.SubElement(pkgItem, 'downloadURL')
+                propItem.text = downloadURL
+                propItem = etree.SubElement(pkgItem, 'filename')
+                propItem.text = filename
+
+                ## get zRIF 
+                zRIF = data[4]
+                propItem = etree.SubElement(pkgItem, 'zRIF')
+                propItem.text = zRIF
+                
+                ## get fileSize
+                #try:
+                    #openedUrl = urllib2.urlopen(downloadURL)
+                    #urlInfo = openedUrl.info()
+                    #fileSize = int(urlInfo["Content-Length"])
+                #except:
+                    #fileSize = ''
+                fileSize = 0
+                propItem = etree.SubElement(pkgItem, 'fileSize')
+                propItem.text = str(fileSize)
+
+        ## serialize the xml
+        fd = open(self.database, 'w')
+        
+        fd.write(etree.tostring(rootItem, pretty_print=True))
+        
+        fd.close()
+        print 'import done'
+            
     def GetPkgsData(self, *args):
         pkgData = []
         code = 0
@@ -321,7 +518,12 @@ class IniCtrl():
 
             self.ResetValues()
             for child in list(root):
-                self.SetValues(child.tag, child.text)
+                if child.text == None:
+                    value = ''
+                else:
+                    value =child.text
+
+                self.SetValues(child.tag, value)
                 #print 'child.tag', child.tag, child.text
             
             #for value in tree.xpath("/ini"):
@@ -363,7 +565,76 @@ class IniCtrl():
     
     def Stop(self):
         pass
-        
+
+#class DownloadThread(Thread):
+    #def __init__(self, downloadCtrl):
+        #Thread.__init__(self)
+        #self.downloadCtrl = downloadCtrl
+
+    #def run(self):
+        #for dFile in self.downloadCtrl.downloadFiles:
+            #url = dFile.Get('url')[0]
+            ##print 'url', url 
+            #try:
+                ### open the distant url
+                #openedUrl = urllib2.urlopen(url)
+                #totalSize = dFile.Get('totalSize')[0]
+
+                ### open the local file
+                #filename = dFile.Get('filename')[0]
+                #filenamePart = '.'.join((filename, 'part'))
+                #fd = open(filenamePart, 'wb')
+                
+                ### download the file
+                #blockSize = 8192 #100000 # urllib.urlretrieve uses 8192
+                #count = 0
+                #before = timeit.default_timer()
+                #percent = 0
+                #while True:
+                    ### read a chunk of the distant file
+                    #chunk = openedUrl.read(blockSize)
+                    #if not chunk:
+                        #break
+
+                    #fd.write(chunk)
+
+                    #if count % 10:
+                        ### compute the percentage
+                        #if totalSize > 0:
+                            #percent = int(count * blockSize * 100 / totalSize)
+                            #if percent > 100:
+                                #percent = 100
+
+                        #dFile.Set('percent', percent)
+                        
+                        ### compute the speed
+                        #now = timeit.default_timer()
+                        #deltaTime = now - before
+                        #before = now
+
+                        #if deltaTime > 0:
+                            #speed = blockSize / deltaTime
+
+                        #dFile.Set('speed', speed)
+
+                        ##API.SetCtrl(apiCtrl)
+                        ##API.Send('RefreshDownloadData')
+
+                    #count += 1
+                    
+                    ### debug
+                    ##res = 'filename ' + filename + ' ' + str(percent) + '% ' + str(FWTools.ConvertBytes(speed))
+                    ##sys.stdout.write('\r' + res)
+
+                    
+                #fd.flush()
+                #fd.close()
+
+                #if percent == 100:
+                    #os.rename(filenamePart, filename)
+            #except Exception, e:
+                #DPrint('error downloading {0}: {1}'.format(url, e), -1)
+                
 class DownloadCtrl():
     def __init__(self, nbDownloadQueues):
         #self.nbDownloadQueues = nbDownloadQueues
@@ -373,14 +644,20 @@ class DownloadCtrl():
             #self.downloadQueues.append(dQueue)
 
         self.directory = ''
-        self.processes = []
+        #self.processes = []
+        self.threads = []
+        self.stopThreads = False
+        self.downloadFiles = []
         
         self.onGoingDownload = False
             
         API.Subscribe('SetDownloadDirectory', lambda args: self.SetDownloadDirectory(*args))
-        API.Subscribe('SetDownloadUrls', lambda args: self.SetDownloadUrls(*args))
+        API.Subscribe('SetDownloadData', lambda args: self.SetDownloadData(*args))
         API.Subscribe('StartDownload', lambda args: self.StartDownload(*args))
         API.Subscribe('StopDownload', lambda args: self.StopDownload(*args))
+        API.Subscribe('CleanDownloadFiles', lambda args: self.CleanFiles(*args))
+        API.Subscribe('GetDownloadData', lambda args: self.GetDownloadData(*args))
+        #API.Subscribe('ClearDownloadData', lambda args: self.ClearDownloadData(*args))
 
     def SetDownloadDirectory(self, *args):
         res = ''
@@ -402,16 +679,30 @@ class DownloadCtrl():
             
         return res, code, message
         
-    def SetDownloadUrls(self, *args):
+    def SetDownloadData(self, *args):
         res = ''
         code = 0
         message = ''
         
         urlData = args[0]
+        #print 'urlData', urlData
 
-        process = Process(target=self.DownloadProcess, args=(urlData,))
-        self.processes.append(process)
+        self.downloadFiles = []
+        for url, destination in urlData:
+            filename = join(self.directory, destination)
+            #filenamePart = '.'.join((filename, 'part'))
 
+            openedUrl = urllib2.urlopen(url)
+            urlInfo = openedUrl.info()
+            totalSize = int(urlInfo["Content-Length"])
+                
+            dFile = DownloadFile(url=url, filename=filename, basename=destination, totalSize=totalSize)
+
+            self.downloadFiles.append(dFile)
+
+        thread = Thread(target=self.DownloadThread, args=(lambda: self.stopThreads,))
+        self.threads.append(thread)
+        
         return res, code, message
 
     def StartDownload(self, *args):
@@ -423,11 +714,10 @@ class DownloadCtrl():
         if self.directory != '':
             if self.onGoingDownload == False:
                 self.onGoingDownload = True
-                for process in self.processes:
-                    process.start()
-                    
-                #for process in self.processes:
-                    #process.join()
+                for thread in self.threads:
+                    #thread.daemon = True
+                    self.stopThreads = False
+                    thread.start()
             else:
                 code = -1
                 message = 'Files are already being downloaded'
@@ -441,41 +731,134 @@ class DownloadCtrl():
         res = ''
         code = 0
         message = ''
+
+        #API.Send('DownloadStop')
         
         if self.onGoingDownload == True:
-            for process in self.processes:
-                process.terminate()
-                process.join()
-
-        ## reinit the process list
-        self.processes = []
+            self.stopThreads = True
+            for thread in self.threads:
+                thread.join()
+                
+        ## reinit the thread list
+        self.threads = []
         self.onGoingDownload = False
         
-        ## TODO : clean the not finisher downloaded file?
-        
         return res, code, message
+
+    def DownloadThread(self, stopThread):
+        terminate = False
+        for dFile in self.downloadFiles:
+            url = dFile.Get('url')[0]
+            #print 'url', url 
+            try:
+                ## open the distant url
+                openedUrl = urllib2.urlopen(url)
+                totalSize = dFile.Get('totalSize')[0]
+
+                ## open the local file
+                filename = dFile.Get('filename')[0]
+                filenamePart = '.'.join((filename, 'part'))
+                fd = open(filenamePart, 'wb')
+                
+                ## download the file
+                blockSize = 8192 #100000 # urllib.urlretrieve uses 8192
+                count = 0
+                before = timeit.default_timer()
+                percent = 0
+                while True:
+                    if stopThread():
+                        print 'stop'
+                        terminate = True
+                        break
+                        
+                    ## read a chunk of the distant file
+                    chunk = openedUrl.read(blockSize)
+                    count += 1
+                    if not chunk:
+                        break
+
+                    fd.write(chunk)
+
+                    ## compute the percentage
+                    if totalSize > 0:
+                        percent = int(count * blockSize * 100 / totalSize)
+                        if percent > 100:
+                            percent = 100
+
+                    dFile.Set('percent', percent)
+                    
+                    ## compute the speed
+                    now = timeit.default_timer()
+                    deltaTime = now - before
+                    before = now
+
+                    if deltaTime > 0:
+                        speed = blockSize / deltaTime
+
+                    dFile.Set('speed', speed)
+
+                    #if count % 10000:
+                        #API.Send('RefreshDownloadData')
+                    
+                    ## debug
+                    res = 'filename ' + filename + ' ' + str(percent) + ' % ' + str(FWTools.ConvertBytes(speed))
+                    sys.stdout.write('\r' + res)
+
+                #print ''
+                #print 'end'
+                #print 'percent', percent
+                fd.flush()
+                fd.close()
+                
+                if percent == 100:
+                    try:
+                        if (exists(filename) == True) and (isfile(filename) == True):
+                            os.remove(filename)
+
+                        os.rename(filenamePart, filename)
+                    except Exception, e:
+                        DPrint('error renaming {0} in {1}: {2}'.format(filenamePart, filename, e), -1)
+                
+                    API.Send('DownloadDone')
+
+                if stopEvent.is_set() == True:
+                    break
+            except Exception, e:
+                DPrint('error downloading {0}: {1}'.format(url, e), -1)
         
-    def DownloadProcess(self, urlData):
+    def CleanFiles(self, *args):
         res = ''
         code = 0
         message = ''
         
-        for url, destination in urlData:
-            try:
-                destination = '.'.join((destination, 'part'))
-                filename = join(self.directory, destination)
-                downloadFile = urllib.URLopener()
-                downloadFile.retrieve(url, filename, self.ProgressCallback)
-                    
-                #urllib.urlretrieve(url, filename=destination)
-            except Exception, e:
-                DPrint('error downloading {0}: {1}'.format(url, e), -1)
-                
-    def ProgressCallback(self, blocks, block_size, total_size):
-        #blocks->data downloaded so far (first argument of your callback)
-        #block_size -> size of each block
-        #total-size -> size of the file
-        print 'downloaded ', blocks/float(total_size), '%'
+        partFiles = FWTools.GetListFiles('.part', self.directory)
+
+        for partFile in partFiles:
+            filename = join(self.directory, partFile)
+            os.remove(filename)
+
+        return res, code, message
+        
+    def GetDownloadData(self, *args):
+        downloadData = []
+        code = 0
+        message = ''
+
+        for dFile in self.downloadFiles:
+            res, code, message = dFile.Serialize()
+            downloadData.append(res)
+
+        return downloadData, code, message
+        
+    #def ClearDownloadData(self, *args):
+        #res = ''
+        #code = 0
+        #message = ''
+
+        ### todo garbage collect the previous dfile instance?
+        #self.downloadFiles = []
+
+        #return res, code, message
 
     def Stop(self):
         self.StopDownload('')

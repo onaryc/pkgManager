@@ -34,7 +34,7 @@ def GetFileSize(filename):
     if (filename != None) or (filename != ''):
         if (exists(filename) == True) and (isfile(filename) == True):
             res = getsize(filename)
-            res = ConvertBytes(res)
+            #res = ConvertBytes(res)
             
     return res
 
