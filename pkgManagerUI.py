@@ -197,10 +197,11 @@ class UI(wx.Frame):
         
         self.statusBar.SetStatusText(message, 0) 
 
-class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin):
+class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin, ColumnSorterMixin):
     def __init__(self, parent, className, proportion=1, checkBox = True):
         #wx.ListCtrl.__init__(self, parent, size=(-1, -1), style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
         wx.ListCtrl.__init__(self, parent, size=(-1, -1), style=wx.LC_REPORT)
+        #wx.ListCtrl.__init__(self, parent, size=(-1, -1), style=wx.LC_REPORT | wx.LC_AUTOARRANGE | wx.LC_SORT_ASCENDING)
 
         ListCtrlAutoWidthMixin.__init__(self)
         if checkBox == True:
@@ -208,6 +209,9 @@ class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin):
 
         self.mapAttributesCol = {}
         self.mapColAttributes = {}
+        
+        ## for column sorting
+        self.itemDataMap = dict()
 
         ## add the column based on the data model attributes
         attributes = API.Send('GetModelAttributes', className)
@@ -215,37 +219,55 @@ class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin):
             if 'display' in attribute:
                 displayName = attribute['display']
 
-                colIndex = self.AppendColumn(displayName)                
+                if 'position' in attribute:
+                    colIndex = self.InsertColumn(attribute['position'], displayName)
+                else:
+                    colIndex = self.AppendColumn(displayName)
+
                 self.mapAttributesCol[attribute['name']] = colIndex
                 self.mapColAttributes[colIndex] = attribute['name']
 
+        ## for column sorting
+        ColumnSorterMixin.__init__(self, self.GetColumnCount())
+        
         self.sizerFlags = wx.SizerFlags(proportion)
         self.sizerFlags.Expand()
 
+        ## binds
         if checkBox == True:
             self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.OnShowPopup)
-
+        #self.Bind(wx.EVT_LIST_COL_CLICK, self.OnColClick)
+        
         self.ID_CONTEXTUAL_CHECKED = wx.NewId()
         self.ID_CONTEXTUAL_CHECK_ALL = wx.NewId()
         self.ID_CONTEXTUAL_UNCHECKED = wx.NewId()
         self.ID_CONTEXTUAL_UNCHECK_ALL = wx.NewId()
-        
+
+    def GetListCtrl(self):
+        return self
         
     def RemoveValues(self):
         self.DeleteAllItems()
+        self.itemDataMap = dict()
         
     def AddEntry(self, entry):
         ## get the text in col order
         tmp = []
+        tmp2 = ()
         for i in range(self.GetColumnCount()):
             name = self.mapColAttributes[i]
             
             tmp.append(entry[name])
+            tmp2 += (entry[name],)
 
         if tmp != []:
             #print 'tmp', tmp 
             rowIndex = self.Append(tmp)
-                
+            
+            ## for sorting
+            self.SetItemData(rowIndex, rowIndex)
+            self.itemDataMap[rowIndex] = tmp2
+            
             if 'validity' in entry:
                 validity = entry['validity']
 
@@ -266,7 +288,7 @@ class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin):
                 else:
                     color.MakeDisabled(255)
                     
-                self.SetItemBackgroundColour(rowIndex, color)
+                #self.SetItemBackgroundColour(rowIndex, color)
 
 
     def __getSelectedEntries(self, entry, entries = []):
@@ -352,6 +374,16 @@ class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin):
         for selectedEntry in selectedEntries:
             self.CheckItem(selectedEntry, checked)
 
+    #def ListCompareFunction(self, item1, item2):
+        #print 'item1', item1
+        #print 'item2', item2
+        
+    #def OnColClick(self, event):
+        #itemId = event.GetId()
+        #print 'OnColClick', event.GetColumn(), event.GetText()
+        #self.SortItems(self.ListCompareFunction)
+        
+        
 class UIToolbarButton(wx.BitmapButton):
     def __init__(self, parent, command, image, tooltip, idB = -1):
         self.buttonImage = wx.Image(name = image)
@@ -429,7 +461,7 @@ class PkgFilesView(wx.Panel):
         self.toolbar = UIToolBar(self, description)
                 
         ## create the tree view
-        self.listPkg = UIListCtrl(self, 'PkgFile')
+        self.listPkg = UIListCtrl(self, 'GamePkgFile')
 
         ## create the download view
         self.listDownload = UIListCtrl(self, 'DownloadFile', 0, False)

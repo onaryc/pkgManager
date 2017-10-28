@@ -5,6 +5,8 @@ except ImportError, e:
     assert False, 'import error in pkgManagerDM : {0}'.format(e)
     
 class FWObject(object):
+    #instanceVariables = []
+    
     def __init__(self, **kwargs):
         cls = self.__class__
         varsData = cls.GetClassVarsData()
@@ -81,25 +83,61 @@ class FWObject(object):
         return res, 0, ''
 
 class PkgFile(FWObject):
-    ## type = game, update or DLC
-    ## color :  0x00BBGGRR
-    instanceVariables = [\
-        {'name': 'titleID', 'display': 'Title ID','default': ''}, \
-        {'name': 'titleType', 'display': 'Type','default': ''}, \
-        {'name': 'titleName', 'display': 'Name','default': ''}, \
-        {'name': 'titleRegion', 'display': 'Region','default': ''}, \
+    instanceVariables = [ \
+        {'name': 'titleID', 'display': 'Title ID', 'default': ''}, \
+        {'name': 'titleType', 'display': 'Type', 'default': ''}, \
+        {'name': 'titleName', 'display': 'Name', 'default': ''}, \
+        {'name': 'titleRegion', 'display': 'Region', 'default': ''}, \
         {'name': 'filename', 'display': 'Filename', 'default': ''}, \
-        {'name': 'titleFW', 'display': 'FW Version','default': ''}, \
-        {'name': 'fileSize', 'display': 'Size','default': 0, 'conversion': 'FWTools.ConvertBytes'}, \
-        {'name': 'downloadURL', 'display': 'URL','default': ''}, \
-        {'name': 'zRIF', 'display': 'zRIF','default': ''}, \
-        {'name': 'contentID', 'display': 'Content ID','default': ''}, \
+        {'name': 'titleFW', 'display': 'FW Version', 'default': ''}, \
+        {'name': 'fileSize', 'display': 'Size', 'default': 0, 'conversion': 'FWTools.ConvertBytes'}, \
+        {'name': 'downloadURL', 'display': 'URL', 'default': ''}, \
         {'name': 'validity', 'default': ''}, \
+        ]
+        
+    #def __init__(self, **kwargs):
+        #super(self.__class__, self).__init__(**kwargs)
+        
+class GamePkgFile(PkgFile):
+    instanceVariables = PkgFile.instanceVariables + [\
+        {'name': 'zRIF', 'display': 'zRIF', 'position':8, 'default': ''}, \
+        {'name': 'contentID', 'display': 'Content ID', 'position':9, 'default': ''}, \
+        {'name': 'dlcs', 'default': []}, \
+        {'name': 'update', 'default': ''}, \
         ]
         
     def __init__(self, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
-
+        self.Set('titleType', 'game')
+        
+class DLCPkgFile(PkgFile):
+    instanceVariables = PkgFile.instanceVariables + [\
+        {'name': 'zRIF', 'display': 'zRIF', 'position':8, 'default': ''}, \
+        {'name': 'contentID', 'display': 'Content ID', 'position':9, 'default': ''}, \
+        ]
+        
+    def __init__(self, **kwargs):
+        super(self.__class__, self).__init__(**kwargs)
+        self.Set('titleType', 'dlc')
+        
+class UpdatePkgFile(PkgFile):
+    instanceVariables = PkgFile.instanceVariables + [\
+        {'name': 'version', 'display': 'Version', 'default': ''}, \
+        ]
+        
+    def __init__(self, **kwargs):
+        super(self.__class__, self).__init__(**kwargs)
+        self.Set('titleType', 'update')
+        
+class PSMPkgFile(PkgFile):
+    instanceVariables = PkgFile.instanceVariables + [\
+        {'name': 'zRIF', 'display': 'zRIF', 'position':8, 'default': ''}, \
+        ]
+        
+    def __init__(self, **kwargs):
+        super(self.__class__, self).__init__(**kwargs)
+        self.Set('titleType', 'psm')
+        
 class VitaFile(FWObject):
     # type = game, update or DLC
     instanceVariables = [\

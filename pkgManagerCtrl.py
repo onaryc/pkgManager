@@ -23,7 +23,7 @@ try:
     import APICtrl as API
     import FWTools
     import pkgTools
-    from pkgManagerDM import PkgFile, VitaFile, DownloadFile
+    from pkgManagerDM import GamePkgFile, DLCPkgFile, UpdatePkgFile, VitaFile, DownloadFile
     from MessageTools import Print, DPrint, ManageMessage 
 except ImportError, e:
     assert False, 'import error in pkgManagerCtrl : {0}'.format(e)
@@ -73,8 +73,8 @@ class DataCtrl():
         
         className = args[0]
 
-        if className == 'PkgFile':
-            res = PkgFile.GetClassVarsData()
+        if className == 'GamePkgFile':
+            res = GamePkgFile.GetClassVarsData()
         elif className == 'VitaFile':
             res = VitaFile.GetClassVarsData()
         elif className == 'DownloadFile':
@@ -273,9 +273,19 @@ class PkgCtrl(DataCtrl):
                 downloadURL = vitaPkg.attrib['downloadURL']
                 zRIF = vitaPkg.attrib['zRIF']
                 validity = 'distant'
-                
-                pkgFile = PkgFile(contentID = contentID, titleID = titleID, titleType = titleType, titleName = titleName, titleRegion = titleRegion, filename = filename, fileSize = fileSize, downloadURL = downloadURL , zRIF = zRIF, validity = validity)
-                self.pkgs.append(pkgFile)
+
+                if titleType == 'game':
+                    pkgFile = GamePkgFile(contentID = contentID, titleID = titleID, titleType = titleType, titleName = titleName, titleRegion = titleRegion, filename = filename, fileSize = fileSize, downloadURL = downloadURL , zRIF = zRIF, validity = validity)
+                    self.pkgs.append(pkgFile)
+                elif titleType == 'dlc':
+                    pkgFile = DLCPkgFile(contentID = contentID, titleID = titleID, titleType = titleType, titleName = titleName, titleRegion = titleRegion, filename = filename, fileSize = fileSize, downloadURL = downloadURL , zRIF = zRIF, validity = validity)
+                    self.pkgs.append(pkgFile)
+                    gamePkgFile = self.SearchDB('titleID', titleID)
+                    if gamePkgFile != []:
+                        dlcs = gamePkgFile[0].Get('dlcs')
+                        dlcs += pkgFile
+                        gamePkgFile[0].Set('dlcs', dlcs)
+                    
             
             ## test if the specified pkg directory is a directory and exists
             #if (self.directory != None) or (self.directory != ''):
@@ -377,12 +387,17 @@ class PkgCtrl(DataCtrl):
 
                         ## get downloadURL and filename
                         downloadURL = data[3]
-                        if downloadURL != 'MISSING':
-                            filename = downloadURL.split('/')[-1]
-                        else:
-                            filename = ''
+                        if downloadURL == 'MISSING':
+                            downloadURL = ''
+                            
                         pkgItem.set("downloadURL", downloadURL)
-                        pkgItem.set("filename", filename)
+                        pkgItem.set("filename", '')
+                        #if downloadURL != 'MISSING':
+                            #filename = downloadURL.split('/')[-1]
+                        #else:
+                            #filename = ''
+                        #pkgItem.set("downloadURL", downloadURL)
+                        #pkgItem.set("filename", filename)
 
                         ## get zRIF 
                         pkgItem.set("zRIF", data[4])
@@ -397,6 +412,7 @@ class PkgCtrl(DataCtrl):
                         fileSize = 0
                         pkgItem.set("fileSize", str(fileSize))
 
+            #self.SaveDB()
             print 'import done'
             
     def GetPkgsData(self, *args):
