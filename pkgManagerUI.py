@@ -385,59 +385,94 @@ class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin, Column
         
         
 class UIToolbarButton(wx.BitmapButton):
-    def __init__(self, parent, command, image, tooltip, idB = -1):
+    def __init__(self, parent, image, command='', tooltip='', idB=-1):
         self.buttonImage = wx.Image(name = image)
         self.buttonBitmap =  self.buttonImage.ConvertToBitmap()
         
         wx.BitmapButton.__init__(self, parent, bitmap = self.buttonBitmap, id=idB)
 
-        self.Bind(wx.EVT_BUTTON, command)
+        if command !='':
+            self.Bind(wx.EVT_BUTTON, command)
+
         self.SetToolTip(tooltip)
+
+class UIToolbarCheck(wx.CheckBox):
+    def __init__(self, parent, label, command='', tooltip='', checked=False, idB=-1):
+        wx.CheckBox.__init__(self, parent, id=idB, label=label)
+
+        if command !='':
+            self.Bind(wx.EVT_CHECKBOX, command)
+
+        self.SetToolTip(tooltip)
+
+        print 'checked', checked
+        self.SetValue(checked)
         
 class UIToolBar(wx.BoxSizer):
     def __init__(self, parent, description):
         wx.BoxSizer.__init__(self, orient = wx.HORIZONTAL)
 
-        self.buttonById = {}
-        buttonFlags = wx.SizerFlags(0)
-        for buttonData in description:
-            command = buttonData['command']
-            image = buttonData['image']
-            tooltip = buttonData['tooltip']
-            if 'id' in buttonData:
-                idB = buttonData['id']
-            else:
-                idB = -1
-                
-            tbButton = UIToolbarButton(parent, command, image, tooltip, idB)
-
-            if idB != -1:
-                self.buttonById[idB] = tbButton 
-
-            if 'state' in buttonData:
-                state = buttonData['state']
-                if state == 'disabled':
-                    tbButton.Disable()
-                
-            self.Add(tbButton, buttonFlags)
-            
+        self.toolbarItemById = {}
         self.sizerFlags = wx.SizerFlags(0)
+        self.sizerFlags.Align(wx.ALIGN_CENTER_VERTICAL)
+        #itemFlags = wx.SizerFlags(0)
         
+        for itemData in description:
+            tbItem = -1
+
+            ## get data
+            label = ''
+            if 'label' in itemData:
+                label = itemData['label']
+                    
+            command = ''
+            if 'command' in itemData:
+                command = itemData['command']
+
+            idItem = -1
+            if 'id' in itemData:
+                idItem = itemData['id']
+
+            if 'tooltip' in itemData:
+                tooltip = itemData['tooltip']
+
+            ## create the UI toolbar item
+            itemType = itemData['type']
+            if itemType == 'button':
+                image = itemData['image']
+                tbItem = UIToolbarButton(parent, image, command, tooltip, idItem)
+            elif itemType == 'check':
+                checked = False
+                if 'checked' in itemData:
+                    checked = itemData['checked']
+                tbItem = UIToolbarCheck(parent, label, command, tooltip, checked, idItem)
+            elif itemType == 'separator':
+                size = itemData['size']
+                self.AddSpacer(size)
+            elif itemType == 'progress':
+                tbItem =  wx.Gauge(parent, idItem)
+                
+            if tbItem != -1:
+                if idItem != -1:
+                    self.toolbarItemById[idItem] = tbItem 
+
+                if 'state' in itemData:
+                    state = itemData['state']
+                    if state == 'disabled':
+                        tbItem.Disable()
+                
+                self.Add(tbItem, self.sizerFlags)
+
     def GetSizerFlags(self):
         return self.sizerFlags
 
-    def GetButtonByID (self, idB):
+    def GetToolbarItemByID (self, idB):
         res = ''
         
-        if idB in self.buttonById:
-            res = self.buttonById[idB]
+        if idB in self.toolbarItemById:
+            res = self.toolbarItemById[idB]
 
         return res
-
-#def DummyProc():
-    #while True:
-        #print 'dummy'
-        #time.sleep(1)
     
 class PkgFilesView(wx.Panel):
     def __init__(self, parent):
@@ -448,14 +483,41 @@ class PkgFilesView(wx.Panel):
 
         ## create the toolbar toolbar
         self.ID_START_BUTTON = wx.NewId()
+        self.ID_PAUSE_BUTTON = wx.NewId()
         self.ID_STOP_BUTTON = wx.NewId()
+        self.ID_CHECK_GAME = wx.NewId()
+        self.ID_CHECK_DLC = wx.NewId()
+        self.ID_CHECK_UPDATE = wx.NewId()
+        self.ID_CHECK_PSM = wx.NewId()
+        self.ID_PROGRESS = wx.NewId()
             
+        #description = [ \
+            #{'type': 'button', 'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh Pkgs information'}, \
+            #{'type': 'button', 'command': self.ClearPkgData, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear Pkgs information'}, \
+            #{'type': 'button', 'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Rename selected Pkg files', 'state': 'disabled'}, \
+            #{'type': 'button', 'command': self.StartDownload, 'image': 'resources/media-playback-start.png', 'tooltip': 'Download selected Pkg files', 'id':self.ID_START_BUTTON}, \
+            #{'type': 'button', 'command': self.PauseDownload, 'image': 'resources/media-playback-pause.png', 'tooltip': 'Pause current downloads', 'id':self.ID_PAUSE_BUTTON}, \
+            #{'type': 'button', 'command': self.StopDownload, 'image': 'resources/media-playback-stop.png', 'tooltip': 'Stop download operations', 'id':self.ID_STOP_BUTTON, 'state': 'disabled'}, \
+            #{'type': 'separator', 'size': 5}, \
+            #{'type': 'check', 'command': '', 'label': 'Game', 'tooltip': 'Select Game', 'id':self.ID_CHECK_GAME}, \
+            #{'type': 'check', 'command': '', 'label': 'DLC', 'tooltip': 'Select DLC', 'id':self.ID_CHECK_GAME}, \
+            #{'type': 'check', 'command': '', 'label': 'Update', 'tooltip': 'Select Update', 'id':self.ID_CHECK_GAME}, \
+            #{'type': 'check', 'command': '', 'label': 'PSM', 'tooltip': 'Select PSM', 'id':self.ID_CHECK_GAME} \
+            #]
         description = [ \
-            {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh Pkgs information'}, \
-            {'command': self.ClearPkgData, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear Pkgs information'}, \
-            {'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Rename selected Pkg files', 'state': 'disabled'}, \
-            {'command': self.StartDownload, 'image': 'resources/go-bottom.png', 'tooltip': 'Download selected Pkg files', 'id':self.ID_START_BUTTON}, \
-            {'command': self.StopDownload, 'image': 'resources/process-stop.png', 'tooltip': 'Stop download operations', 'id':self.ID_STOP_BUTTON, 'state': 'disabled'} \
+            {'type': 'button', 'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh Pkgs information'}, \
+            {'type': 'button', 'command': self.ClearPkgData, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear Pkgs information'}, \
+            {'type': 'separator', 'size': 5}, \
+            {'type': 'check', 'command': '', 'label': 'Game', 'tooltip': 'Select Game', 'id':self.ID_CHECK_GAME, 'checked': True}, \
+            {'type': 'check', 'command': '', 'label': 'DLC', 'tooltip': 'Select DLC', 'id':self.ID_CHECK_DLC, 'checked': True}, \
+            {'type': 'check', 'command': '', 'label': 'Update', 'tooltip': 'Select Update', 'id':self.ID_CHECK_UPDATE, 'checked': True}, \
+            {'type': 'check', 'command': '', 'label': 'PSM', 'tooltip': 'Select PSM', 'id':self.ID_CHECK_PSM, 'checked': True}, \
+           #{'type': 'button', 'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Rename selected Pkg files', 'state': 'disabled'}, \
+            {'type': 'button', 'command': self.StartDownload, 'image': 'resources/media-playback-start.png', 'tooltip': 'Download selected Pkg files', 'id':self.ID_START_BUTTON}, \
+            {'type': 'button', 'command': self.PauseDownload, 'image': 'resources/media-playback-pause.png', 'tooltip': 'Pause current downloads', 'id':self.ID_PAUSE_BUTTON}, \
+            {'type': 'button', 'command': self.StopDownload, 'image': 'resources/media-playback-stop.png', 'tooltip': 'Stop download operations', 'id':self.ID_STOP_BUTTON, 'state': 'disabled'}, \
+            {'type': 'separator', 'size': 5}, \
+            {'type': 'progress', 'id':self.ID_PROGRESS}, \
             ]
 
         self.toolbar = UIToolBar(self, description)
@@ -474,9 +536,9 @@ class PkgFilesView(wx.Panel):
 
         self.SetSizerAndFit(mainSizer)
 
-        #self.downloadRefresh = Process(target=self.RefreshDownloadData)
-        #self.downloadRefresh = Process(target=DummyProc)
-        #self.downloadRefresh = Process(target=self.RefreshDownloadProcess)
+        #self.stopThreads = False
+        #self.pauseThreads = False
+        #self.downloadRefresh = Thread(target=self.RefreshDownloadThread, args=(lambda: self.pauseThreads, lambda: self.stopThreads))
 
     def Rename(self, event = ''):
         checkedEntries = self.listPkg.GetCheckEntries()
@@ -494,8 +556,13 @@ class PkgFilesView(wx.Panel):
     def FillValues(self, event = ''):
         self.ClearPkgData()
         self.ClearDownloadData()
-        
-        API.Send('RefreshPkgsData')
+
+        gameChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_GAME).GetValue()
+        dlcChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_DLC).GetValue()
+        updateChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_UPDATE).GetValue()
+        psmChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_PSM).GetValue()
+
+        API.Send('RefreshPkgsData', gameChecked, dlcChecked, updateChecked, psmChecked)
         pkgsData = API.Send('GetPkgsData')
 
         for pkgData in pkgsData:
@@ -510,76 +577,120 @@ class PkgFilesView(wx.Panel):
             #if timing > 0:
                 #time.sleep(timing)
     def Refresh(self):
-        self.RefreshDownloadData()
+        pass
+        #self.RefreshDownloadData()
+        
+    #def RefreshDownloadThread(self, pauseThread, stopThread):
+        #print 'RefreshDownloadData'
+        #while True:
+            #if stopThread() == True:
+                #break
+                
+            #if pauseThread() == False:
+                #self.RefreshDownloadData()
+
+                #time.sleep(1)
         
     def RefreshDownloadData(self, *args):
-        #print 'RefreshDownloadData'
+        print 'RefreshDownloadData'
         res = ''
         code = 0
         message = ''
-        
+
         self.ClearDownloadData()
         downloadsData = API.Send('GetDownloadData')
-        #print 'downloadsData', downloadsData
         for downloadData in downloadsData:        
             self.listDownload.AddEntry(downloadData)
 
         return res, code, message
         
     def DownloadDone(self, *args):
-        print 'DownloadDone'
+        #print 'DownloadDone'
         res = ''
         code = 0
         message = ''
 
-        startButton = self.toolbar.GetButtonByID(self.ID_START_BUTTON)
+        startButton = self.toolbar.GetToolbarItemByID(self.ID_START_BUTTON)
         startButton.Enable()
-        stopButton = self.toolbar.GetButtonByID(self.ID_STOP_BUTTON)
+        pauseButton = self.toolbar.GetToolbarItemByID(self.ID_PAUSE_BUTTON)
+        pauseButton.Disable()
+        stopButton = self.toolbar.GetToolbarItemByID(self.ID_STOP_BUTTON)
         stopButton.Disable()
 
         return res, code, message
                 
     def StartDownload(self, event = ''):
-        checkedEntries = self.listPkg.GetCheckEntries()
-        urlData = []
-        for checkedEntry in checkedEntries:
-            #filename = self.listCtrl.GetEntryText(checkedEntry, 'filename')
-            downloadURL = self.listPkg.GetEntryText(checkedEntry, 'downloadURL')
-            filename = downloadURL.split('/')[-1]
-
-            urlData.append([downloadURL, filename])
-
-        if urlData != []:
-            pkgDirectory = API.Send('GetPkgDirectory')
-            API.Send('SetDownloadDirectory', pkgDirectory)
-            #API.Send('ClearDownloadData')
-            API.Send('SetDownloadData', urlData)
-
-            ## fill the download file list
-            #self.RefreshDownloadData()
-            #self.downloadRefresh.start()
-            
-            API.Send('StartDownload')
-
-            ## manage toolbar button
-            startButton = self.toolbar.GetButtonByID(self.ID_START_BUTTON)
-            #startButton = event.GetEventObject()
+        onGoingDownloads = API.Send('OnGoingDownloads')
+        if onGoingDownloads == True:
+            API.Send('ResumeDownload')
+            #self.stopThreads = False
+            #self.pauseThreads = False
+            startButton = self.toolbar.GetToolbarItemByID(self.ID_START_BUTTON)
             startButton.Disable()
-            stopButton = self.toolbar.GetButtonByID(self.ID_STOP_BUTTON)
-            stopButton.Enable()
+            pauseButton = self.toolbar.GetToolbarItemByID(self.ID_PAUSE_BUTTON)
+            pauseButton.Enable()
+            stopButton = self.toolbar.GetToolbarItemByID(self.ID_STOP_BUTTON)
+            stopButton.Enable()                
+        else:
+            checkedEntries = self.listPkg.GetCheckEntries()
+            urlData = []
+            for checkedEntry in checkedEntries:
+                #filename = self.listCtrl.GetEntryText(checkedEntry, 'filename')
+                downloadURL = self.listPkg.GetEntryText(checkedEntry, 'downloadURL')
+                filename = downloadURL.split('/')[-1]
+
+                urlData.append([downloadURL, filename])
+
+            if urlData != []:
+                pkgDirectory = API.Send('GetPkgDirectory')
+                API.Send('SetDownloadDirectory', pkgDirectory)
+                #API.Send('ClearDownloadData')
+                API.Send('SetDownloadData', urlData)
+
+                ## fill the download file list
+                #self.RefreshDownloadData()
+                #self.stopThreads = False
+                #self.pauseThreads = False
+                #self.downloadRefresh.start()
+                
+                API.Send('StartDownload')
+
+                ## manage toolbar button
+                startButton = self.toolbar.GetToolbarItemByID(self.ID_START_BUTTON)
+                startButton.Disable()
+                pauseButton = self.toolbar.GetToolbarItemByID(self.ID_PAUSE_BUTTON)
+                pauseButton.Enable()
+                stopButton = self.toolbar.GetToolbarItemByID(self.ID_STOP_BUTTON)
+                stopButton.Enable()
+
+    
+    def PauseDownload(self, event = ''):
+        ## manage toolbar button
+        startButton = self.toolbar.GetToolbarItemByID(self.ID_START_BUTTON)
+        startButton.Enable()
+        pauseButton = self.toolbar.GetToolbarItemByID(self.ID_PAUSE_BUTTON)
+        pauseButton.Disable()
+        stopButton = self.toolbar.GetToolbarItemByID(self.ID_STOP_BUTTON)
+        stopButton.Enable()
+
+        API.Send('PauseDownload')
+
+        #self.pauseThreads = True
             
     def StopDownload(self, event = ''):
         ## manage toolbar button
-        startButton = self.toolbar.GetButtonByID(self.ID_START_BUTTON)
+        startButton = self.toolbar.GetToolbarItemByID(self.ID_START_BUTTON)
         startButton.Enable()
-        stopButton = self.toolbar.GetButtonByID(self.ID_STOP_BUTTON)
+        pauseButton = self.toolbar.GetToolbarItemByID(self.ID_PAUSE_BUTTON)
+        pauseButton.Disable()
+        stopButton = self.toolbar.GetToolbarItemByID(self.ID_STOP_BUTTON)
         stopButton.Disable()
 
         API.Send('StopDownload')
 
-        #if self.downloadRefresh.is_alive():
-            #self.downloadRefresh.terminate()
-            #self.downloadRefresh.join()
+        #self.stopThreads = True
+        #self.downloadRefresh.join()
+        self.ClearDownloadData()
 
         API.Send('CleanDownloadFiles')
             
@@ -590,8 +701,8 @@ class VitaFilesView(wx.Panel):
 
         ## create the toolbar toolbar
         description = [ \
-            {'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local vita app information'}, \
-            {'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local vita app information'} \
+            {'type': 'button', 'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh local vita app information'}, \
+            {'type': 'button', 'command': self.ClearValues, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear local vita app information'} \
             ]
 
         self.toolbar = UIToolBar(self, description)

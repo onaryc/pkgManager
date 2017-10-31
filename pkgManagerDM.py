@@ -75,7 +75,7 @@ class FWObject(object):
             varName = varData['name']
             value, code, message = self.Get(varName)
 
-            if 'conversion' in varData:
+            if ('conversion' in varData) and (str(value) != ''):
                 value = eval(varData['conversion'] +'('+str(value)+')')
 
             res[varName] = value

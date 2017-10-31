@@ -3,18 +3,15 @@
 
 try:
     import os
-    from os.path import exists, isdir, isfile, join
+    from os.path import exists, isdir, isfile, join, getsize
 
     import sys
     import time
     import timeit
     
-    #import urllib
     import urllib2
     
     #from Queue import Queue
-    #from multiprocessing import Lock, Process, Queue
-    #from multiprocessing import Process
     from threading import Thread, current_thread, Event
     import Queue
     
@@ -99,6 +96,7 @@ class PkgCtrl(DataCtrl):
         self.pkgs = []
         #self.renamePkg = 'bin\\renamePkg.exe'
         self.renamePkg = 'renamePkg.exe'
+        self.currentImportPercent = 0
  
         API.Subscribe('RefreshPkgsData', lambda args: self.RefreshPkgsData(*args))
         API.Subscribe('GetPkgsData', lambda args: self.GetPkgsData(*args))
@@ -259,25 +257,58 @@ class PkgCtrl(DataCtrl):
         code = 0
         message = ''
 
+        getGame = args[0]
+        getDlc = args[1]
+        getUpdate = args[2]
+        getPSM = args[3]
         if self.database != '':
             self.pkgs = []
             for vitaPkg in self.database.xpath("/vitaDB/vitaPkg"):
+                contentID = ''
+                titleID = ''
+                titleType = ''
+                titleName = ''
+                titleRegion = ''
+                filename = ''
+                fileSize = ''
+                downloadURL = ''
+                zRIF = ''
+                validity = ''
+                
                 #print 'attributes', vitaPkg.attrib
-                contentID = vitaPkg.attrib['contentId']
-                titleID = vitaPkg.attrib['titleId']
-                titleType = vitaPkg.attrib['type']
-                titleName = vitaPkg.attrib['titleName']
-                titleRegion = vitaPkg.attrib['titleRegion']
-                filename = vitaPkg.attrib['filename']
-                fileSize = vitaPkg.attrib['fileSize']
-                downloadURL = vitaPkg.attrib['downloadURL']
-                zRIF = vitaPkg.attrib['zRIF']
+                if 'contentId' in vitaPkg.attrib:
+                    contentID = vitaPkg.attrib['contentId']
+
+                if 'titleId' in vitaPkg.attrib:
+                    titleID = vitaPkg.attrib['titleId']
+
+                if 'type' in vitaPkg.attrib:
+                    titleType = vitaPkg.attrib['type']
+
+                if 'titleName' in vitaPkg.attrib:
+                    titleName = vitaPkg.attrib['titleName']
+
+                if 'titleRegion' in vitaPkg.attrib:
+                    titleRegion = vitaPkg.attrib['titleRegion']
+
+                if 'filename' in vitaPkg.attrib:
+                    filename = vitaPkg.attrib['filename']
+
+                if 'fileSize' in vitaPkg.attrib:
+                    fileSize = vitaPkg.attrib['fileSize']
+
+                if 'downloadURL' in vitaPkg.attrib:                    
+                    downloadURL = vitaPkg.attrib['downloadURL']
+
+                if 'zRIF' in vitaPkg.attrib:
+                    zRIF = vitaPkg.attrib['zRIF']
+
                 validity = 'distant'
 
-                if titleType == 'game':
+                if (titleType == 'game') and (getGame == True):
                     pkgFile = GamePkgFile(contentID = contentID, titleID = titleID, titleType = titleType, titleName = titleName, titleRegion = titleRegion, filename = filename, fileSize = fileSize, downloadURL = downloadURL , zRIF = zRIF, validity = validity)
                     self.pkgs.append(pkgFile)
-                elif titleType == 'dlc':
+                elif (titleType == 'dlc') and (getDlc == True):
                     pkgFile = DLCPkgFile(contentID = contentID, titleID = titleID, titleType = titleType, titleName = titleName, titleRegion = titleRegion, filename = filename, fileSize = fileSize, downloadURL = downloadURL , zRIF = zRIF, validity = validity)
                     self.pkgs.append(pkgFile)
                     gamePkgFile = self.SearchDB('titleID', titleID)
@@ -285,6 +316,10 @@ class PkgCtrl(DataCtrl):
                         dlcs = gamePkgFile[0].Get('dlcs')
                         dlcs += pkgFile
                         gamePkgFile[0].Set('dlcs', dlcs)
+                elif (titleType == 'update') and (getUpdate == True):
+                    pass
+                elif (titleType == 'psm') and (getPSM == True):
+                    pass
                     
             
             ## test if the specified pkg directory is a directory and exists
@@ -341,10 +376,19 @@ class PkgCtrl(DataCtrl):
         print 'ImportThread'
         if self.database != '':
             rootItem = self.database.getroot()
+            
             with open(filename, 'r') as f:
                 header = True
-                print 'import start'
+                print 'import start :'
+                importFileSize = getsize(filename)
+                #print 'importFileSize', filename, '= ', importFileSize
+                byteRead = 0
+                self.currentImportPercent = 0
                 for line in f:
+                    byteRead += len(line) + 1 # +1 to take into account the RC
+                    #print 'read', byteRead, ' on ', importFileSize
+                    self.currentImportPercent = int(byteRead * 100 / importFileSize)
+                    #print 'percent import', percent 
                     if header == True:
                         header = False
                     else:
@@ -681,6 +725,8 @@ class DownloadCtrl():
         #self.processes = []
         self.threads = []
         self.stopThreads = False
+        self.pauseThreads = False
+        self.refreshUIThread = ''
         self.downloadFiles = []
         
         self.onGoingDownload = False
@@ -688,9 +734,12 @@ class DownloadCtrl():
         API.Subscribe('SetDownloadDirectory', lambda args: self.SetDownloadDirectory(*args))
         API.Subscribe('SetDownloadData', lambda args: self.SetDownloadData(*args))
         API.Subscribe('StartDownload', lambda args: self.StartDownload(*args))
+        API.Subscribe('PauseDownload', lambda args: self.PauseDownload(*args))
+        API.Subscribe('ResumeDownload', lambda args: self.ResumeDownload(*args))
         API.Subscribe('StopDownload', lambda args: self.StopDownload(*args))
         API.Subscribe('CleanDownloadFiles', lambda args: self.CleanFiles(*args))
         API.Subscribe('GetDownloadData', lambda args: self.GetDownloadData(*args))
+        API.Subscribe('OnGoingDownloads', lambda args: self.OnGoingDownloads(*args))
         #API.Subscribe('ClearDownloadData', lambda args: self.ClearDownloadData(*args))
 
     def SetDownloadDirectory(self, *args):
@@ -710,6 +759,15 @@ class DownloadCtrl():
         else:
             code = -1
             message = 'The download directory is empty'
+            
+        return res, code, message
+        
+    def OnGoingDownloads(self, *args):
+        res = ''
+        code = 0
+        message = ''
+
+        res = self.onGoingDownload
             
         return res, code, message
         
@@ -734,13 +792,13 @@ class DownloadCtrl():
 
             self.downloadFiles.append(dFile)
 
-        thread = Thread(target=self.DownloadThread, args=(lambda: self.stopThreads,))
+        thread = Thread(target=self.DownloadThread, args=(lambda: self.pauseThreads,lambda: self.stopThreads))
         self.threads.append(thread)
         
         return res, code, message
 
     def StartDownload(self, *args):
-        print 'StartDownload', args
+        #print 'StartDownload', args
         res = ''
         code = 0
         message = ''
@@ -751,7 +809,11 @@ class DownloadCtrl():
                 for thread in self.threads:
                     #thread.daemon = True
                     self.stopThreads = False
+                    self.pauseThreads = False
                     thread.start()
+
+                self.refreshUIThread = Thread(target=self.RefreshThread, args=(lambda: self.pauseThreads,lambda: self.stopThreads))
+                self.refreshUIThread.start()
             else:
                 code = -1
                 message = 'Files are already being downloaded'
@@ -759,6 +821,26 @@ class DownloadCtrl():
             code = -1
             message = 'The download directory is empty'
             
+        return res, code, message
+
+    def PauseDownload(self, *args):
+        res = ''
+        code = 0
+        message = ''
+        
+        if self.onGoingDownload == True:
+            self.pauseThreads = True
+        
+        return res, code, message
+        
+    def ResumeDownload(self, *args):
+        res = ''
+        code = 0
+        message = ''
+        
+        if self.onGoingDownload == True:
+            self.pauseThreads = False
+        
         return res, code, message
 
     def StopDownload(self, *args):
@@ -772,6 +854,8 @@ class DownloadCtrl():
             self.stopThreads = True
             for thread in self.threads:
                 thread.join()
+
+            self.refreshUIThread.join()
                 
         ## reinit the thread list
         self.threads = []
@@ -779,7 +863,7 @@ class DownloadCtrl():
         
         return res, code, message
 
-    def DownloadThread(self, stopThread):
+    def DownloadThread(self, pauseThread, stopThread, speedUpdate = 10):
         terminate = False
         for dFile in self.downloadFiles:
             url = dFile.Get('url')[0]
@@ -799,48 +883,50 @@ class DownloadCtrl():
                 count = 0
                 before = timeit.default_timer()
                 percent = 0
+                update = speedUpdate
                 while True:
-                    if stopThread():
-                        print 'stop'
+                    if stopThread() == True:
+                        #print 'stop'
                         terminate = True
                         break
+
+                    if pauseThread() == False:
+                        ## read a chunk of the distant file
+                        chunk = openedUrl.read(blockSize)
+                        count += 1
+                        if not chunk:
+                            break
+
+                        fd.write(chunk)
+
+                        ## compute the percentage
+                        if totalSize > 0:
+                            percent = int(count * blockSize * 100 / totalSize)
+                            if percent > 100:
+                                percent = 100
+
+                        dFile.Set('percent', percent)
+
+                        ## compute the speed
+                        ## in order to compute the speed more presizely 
+                        update -= 1
+                        if update == 0:
+                            update = speedUpdate
+                            
+                            now = timeit.default_timer()
+                            print 
+                            deltaTime = now - before
+                            before = now
+
+                            if deltaTime > 0:
+                                speed = blockSize / deltaTime
+
+                            dFile.Set('speed', speed)
                         
-                    ## read a chunk of the distant file
-                    chunk = openedUrl.read(blockSize)
-                    count += 1
-                    if not chunk:
-                        break
+                        ## debug
+                        #res = 'filename ' + filename + ' ' + str(percent) + ' % ' + str(FWTools.ConvertBytes(speed))
+                        #sys.stdout.write('\r' + res)
 
-                    fd.write(chunk)
-
-                    ## compute the percentage
-                    if totalSize > 0:
-                        percent = int(count * blockSize * 100 / totalSize)
-                        if percent > 100:
-                            percent = 100
-
-                    dFile.Set('percent', percent)
-                    
-                    ## compute the speed
-                    now = timeit.default_timer()
-                    deltaTime = now - before
-                    before = now
-
-                    if deltaTime > 0:
-                        speed = blockSize / deltaTime
-
-                    dFile.Set('speed', speed)
-
-                    #if count % 10000:
-                        #API.Send('RefreshDownloadData')
-                    
-                    ## debug
-                    res = 'filename ' + filename + ' ' + str(percent) + ' % ' + str(FWTools.ConvertBytes(speed))
-                    sys.stdout.write('\r' + res)
-
-                #print ''
-                #print 'end'
-                #print 'percent', percent
                 fd.flush()
                 fd.close()
                 
@@ -859,7 +945,17 @@ class DownloadCtrl():
                     break
             except Exception, e:
                 DPrint('error downloading {0}: {1}'.format(url, e), -1)
-        
+                
+    def RefreshThread(self, pauseThread, stopThread):
+        while True:
+            if stopThread() == True:
+                break
+
+            if pauseThread() == False:
+                API.Send('RefreshDownloadData')
+
+                time.sleep(1)
+
     def CleanFiles(self, *args):
         res = ''
         code = 0
