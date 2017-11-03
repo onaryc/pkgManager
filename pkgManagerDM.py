@@ -90,57 +90,105 @@ class PkgFile(FWObject):
         {'name': 'titleRegion', 'display': 'Region', 'default': ''}, \
         {'name': 'filename', 'display': 'Filename', 'default': ''}, \
         {'name': 'titleFW', 'display': 'FW Version', 'default': ''}, \
+        {'name': 'version', 'display': 'Version', 'default': ''}, \
         {'name': 'fileSize', 'display': 'Size', 'default': 0, 'conversion': 'FWTools.ConvertBytes'}, \
         {'name': 'downloadURL', 'display': 'URL', 'default': ''}, \
+        {'name': 'zRIF', 'display': 'zRIF', 'default': ''}, \
+        {'name': 'contentID', 'display': 'Content ID', 'default': ''}, \
         {'name': 'validity', 'default': ''}, \
-        ]
-        
-    #def __init__(self, **kwargs):
-        #super(self.__class__, self).__init__(**kwargs)
-        
-class GamePkgFile(PkgFile):
-    instanceVariables = PkgFile.instanceVariables + [\
-        {'name': 'zRIF', 'display': 'zRIF', 'position':8, 'default': ''}, \
-        {'name': 'contentID', 'display': 'Content ID', 'position':9, 'default': ''}, \
         {'name': 'dlcs', 'default': []}, \
         {'name': 'update', 'default': ''}, \
         ]
         
     def __init__(self, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
-        self.Set('titleType', 'game')
+
+#class PkgFile2(FWObject):
+    #instanceVariables = [ \
+        #{'name': 'titleID', 'display': 'Title ID', 'default': ''}, \
+        #{'name': 'titleType', 'display': 'Type', 'default': ''}, \
+        #{'name': 'titleName', 'display': 'Name', 'default': ''}, \
+        #{'name': 'titleRegion', 'display': 'Region', 'default': ''}, \
+        #{'name': 'filename', 'display': 'Filename', 'default': ''}, \
+        #{'name': 'titleFW', 'display': 'FW Version', 'default': ''}, \
+        #{'name': 'fileSize', 'display': 'Size', 'default': 0, 'conversion': 'FWTools.ConvertBytes'}, \
+        #{'name': 'downloadURL', 'display': 'URL', 'default': ''}, \
+        #{'name': 'validity', 'default': ''}, \
+        #]
         
-class DLCPkgFile(PkgFile):
-    instanceVariables = PkgFile.instanceVariables + [\
-        {'name': 'zRIF', 'display': 'zRIF', 'position':8, 'default': ''}, \
-        {'name': 'contentID', 'display': 'Content ID', 'position':9, 'default': ''}, \
-        ]
+    ##def __init__(self, **kwargs):
+        ##super(self.__class__, self).__init__(**kwargs)
         
-    def __init__(self, **kwargs):
-        super(self.__class__, self).__init__(**kwargs)
-        self.Set('titleType', 'dlc')
+#class GamePkgFile(PkgFile):
+    #instanceVariables = PkgFile.instanceVariables + [ \
+        #{'name': 'zRIF', 'display': 'zRIF', 'position':8, 'default': ''}, \
+        #{'name': 'contentID', 'display': 'Content ID', 'position':9, 'default': ''}, \
+        #{'name': 'dlcs', 'default': []}, \
+        #{'name': 'update', 'default': ''}, \
+        #]
         
-class UpdatePkgFile(PkgFile):
-    instanceVariables = PkgFile.instanceVariables + [\
-        {'name': 'version', 'display': 'Version', 'default': ''}, \
-        ]
+    #def __init__(self, **kwargs):
+        #super(self.__class__, self).__init__(**kwargs)
+        #self.Set('titleType', 'game')
         
-    def __init__(self, **kwargs):
-        super(self.__class__, self).__init__(**kwargs)
-        self.Set('titleType', 'update')
+#class DLCPkgFile(PkgFile):
+    #instanceVariables = PkgFile.instanceVariables + [ \
+        #{'name': 'zRIF', 'display': 'zRIF', 'position':8, 'default': ''}, \
+        #{'name': 'contentID', 'display': 'Content ID', 'position':9, 'default': ''}, \
+        #]
         
-class PSMPkgFile(PkgFile):
-    instanceVariables = PkgFile.instanceVariables + [\
-        {'name': 'zRIF', 'display': 'zRIF', 'position':8, 'default': ''}, \
-        ]
+    #def __init__(self, **kwargs):
+        #super(self.__class__, self).__init__(**kwargs)
+        #self.Set('titleType', 'dlc')
         
-    def __init__(self, **kwargs):
-        super(self.__class__, self).__init__(**kwargs)
-        self.Set('titleType', 'psm')
+#class UpdatePkgFile(PkgFile):
+    #instanceVariables = PkgFile.instanceVariables + [ \
+        #{'name': 'version', 'display': 'Version', 'default': ''}, \
+        #]
+        
+    #def __init__(self, **kwargs):
+        #super(self.__class__, self).__init__(**kwargs)
+        #self.Set('titleType', 'update')
+        
+#class PSMPkgFile(PkgFile):
+    #instanceVariables = PkgFile.instanceVariables + [ \
+        #{'name': 'zRIF', 'display': 'zRIF', 'position':8, 'default': ''}, \
+        #]
+        
+    #def __init__(self, **kwargs):
+        #super(self.__class__, self).__init__(**kwargs)
+        #self.Set('titleType', 'psm')
+        
+#class PSXPkgFile(PkgFile):
+    #instanceVariables = PkgFile.instanceVariables + [ \
+        #{'name': 'contentID', 'display': 'Content ID', 'position':8, 'default': ''}, \
+        #]
+        
+    #def __init__(self, **kwargs):
+        #super(self.__class__, self).__init__(**kwargs)
+        #self.Set('titleType', 'psx')
+        
+#class PSPPkgFile(PkgFile):
+    #instanceVariables = PkgFile.instanceVariables + [ \
+        #{'name': 'contentID', 'display': 'Content ID', 'position':8, 'default': ''}, \
+        #]
+        
+    #def __init__(self, **kwargs):
+        #super(self.__class__, self).__init__(**kwargs)
+        #self.Set('titleType', 'psp')
+        
+#class PSPDLCPkgFile(PkgFile):
+    #instanceVariables = PkgFile.instanceVariables + [ \
+        #{'name': 'contentID', 'display': 'Content ID', 'position':8, 'default': ''}, \
+        #]
+        
+    #def __init__(self, **kwargs):
+        #super(self.__class__, self).__init__(**kwargs)
+        #self.Set('titleType', 'pspdlc')
         
 class VitaFile(FWObject):
     # type = game, update or DLC
-    instanceVariables = [\
+    instanceVariables = [ \
         {'name': 'titleID', 'display': 'Title ID', 'default': ''}, \
         {'name': 'titleType', 'display': 'Type', 'default': ''}, \
         {'name': 'titleName', 'display': 'Name', 'default': ''}, \

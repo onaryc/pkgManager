@@ -20,7 +20,8 @@ try:
     import APICtrl as API
     import FWTools
     import pkgTools
-    from pkgManagerDM import GamePkgFile, DLCPkgFile, UpdatePkgFile, VitaFile, DownloadFile
+    #from pkgManagerDM import GamePkgFile, DLCPkgFile, UpdatePkgFile, VitaFile, DownloadFile
+    from pkgManagerDM import PkgFile, VitaFile, DownloadFile
     from MessageTools import Print, DPrint, ManageMessage 
 except ImportError, e:
     assert False, 'import error in pkgManagerCtrl : {0}'.format(e)
@@ -70,8 +71,17 @@ class DataCtrl():
         
         className = args[0]
 
-        if className == 'GamePkgFile':
-            res = GamePkgFile.GetClassVarsData()
+        #if className == 'GamePkgFile':
+            #res = GamePkgFile.GetClassVarsData()
+        #elif className == 'VitaFile':
+            #res = VitaFile.GetClassVarsData()
+        #elif className == 'DownloadFile':
+            #res = DownloadFile.GetClassVarsData()
+        #else:
+            #code = -1
+            #message = className + ' class does not exist'
+        if className == 'PkgFile':
+            res = PkgFile.GetClassVarsData()
         elif className == 'VitaFile':
             res = VitaFile.GetClassVarsData()
         elif className == 'DownloadFile':
@@ -261,6 +271,9 @@ class PkgCtrl(DataCtrl):
         getDlc = args[1]
         getUpdate = args[2]
         getPSM = args[3]
+        getPSX = args[4]
+        getPSP = args[5]
+        getPSPDLC = args[6]
         if self.database != '':
             self.pkgs = []
             for vitaPkg in self.database.xpath("/vitaDB/vitaPkg"):
@@ -270,9 +283,11 @@ class PkgCtrl(DataCtrl):
                 titleName = ''
                 titleRegion = ''
                 filename = ''
+                titleFW = ''
                 fileSize = ''
                 downloadURL = ''
                 zRIF = ''
+                version = ''
                 validity = ''
                 
                 #print 'attributes', vitaPkg.attrib
@@ -293,6 +308,9 @@ class PkgCtrl(DataCtrl):
 
                 if 'filename' in vitaPkg.attrib:
                     filename = vitaPkg.attrib['filename']
+                    
+                if 'titleFW' in vitaPkg.attrib:
+                    titleFW = vitaPkg.attrib['titleFW']
 
                 if 'fileSize' in vitaPkg.attrib:
                     fileSize = vitaPkg.attrib['fileSize']
@@ -303,25 +321,24 @@ class PkgCtrl(DataCtrl):
                 if 'zRIF' in vitaPkg.attrib:
                     zRIF = vitaPkg.attrib['zRIF']
 
+                if 'version' in vitaPkg.attrib:
+                    version = vitaPkg.attrib['version']
+
                 validity = 'distant'
 
-                if (titleType == 'game') and (getGame == True):
-                    pkgFile = GamePkgFile(contentID = contentID, titleID = titleID, titleType = titleType, titleName = titleName, titleRegion = titleRegion, filename = filename, fileSize = fileSize, downloadURL = downloadURL , zRIF = zRIF, validity = validity)
-                    self.pkgs.append(pkgFile)
-                elif (titleType == 'dlc') and (getDlc == True):
-                    pkgFile = DLCPkgFile(contentID = contentID, titleID = titleID, titleType = titleType, titleName = titleName, titleRegion = titleRegion, filename = filename, fileSize = fileSize, downloadURL = downloadURL , zRIF = zRIF, validity = validity)
-                    self.pkgs.append(pkgFile)
-                    gamePkgFile = self.SearchDB('titleID', titleID)
-                    if gamePkgFile != []:
-                        dlcs = gamePkgFile[0].Get('dlcs')
-                        dlcs += pkgFile
-                        gamePkgFile[0].Set('dlcs', dlcs)
-                elif (titleType == 'update') and (getUpdate == True):
-                    pass
-                elif (titleType == 'psm') and (getPSM == True):
-                    pass
+                pkgFile = PkgFile(contentID = contentID, titleID = titleID, titleType = titleType, titleName = titleName, titleRegion = titleRegion, filename = filename, fileSize = fileSize, downloadURL = downloadURL , zRIF = zRIF, version = version, validity = validity)
+                self.pkgs.append(pkgFile)
+                #if titleType == 'dlc':
+                    #gamePkgFile = self.SearchDB('titleID', titleID)
+                    #if gamePkgFile != []:
+                        #dlcs = gamePkgFile[0].Get('dlcs')
+                        #dlcs += pkgFile
+                        #gamePkgFile[0].Set('dlcs', dlcs)
+                #elif titleType == 'update':
+                    #gamePkgFile = self.SearchDB('titleID', titleID)
+                    #gamePkgFile[0].Set('update', pkgFile)
+
                     
-            
             ## test if the specified pkg directory is a directory and exists
             #if (self.directory != None) or (self.directory != ''):
                 #if (exists(self.directory) == True) and (isdir(self.directory) == True):
@@ -361,6 +378,10 @@ class PkgCtrl(DataCtrl):
         
         if (filename != None) and (filename != ''):
             if (exists(filename) == True) and (isfile(filename) == True):
+                self.pauseRefreshImport = False
+                self.stopRefreshImport = False
+                self.refreshImportThread = Thread(target=self.RefreshImportThread, args=(lambda: self.pauseRefreshImport,lambda: self.stopRefreshImport, 0.25))
+                self.refreshImportThread.start()
                 thread = Thread(target=self.ImportThread, args=(filename,appType,))
                 thread.start()
             else:
@@ -372,92 +393,176 @@ class PkgCtrl(DataCtrl):
             
         return res, code, message
 
-    def ImportThread(self, filename, appType):
-        print 'ImportThread'
+    def RefreshImportThread(self, pauseThread, stopThread, refreshRate):
+        while True:
+            if stopThread() == True:
+                break
+
+            if pauseThread() == False:
+                API.Send('RefreshImportData', self.currentImportPercent)
+
+                time.sleep(refreshRate)
+                
+    def ImportThread(self, filename, importType):
         if self.database != '':
             rootItem = self.database.getroot()
+
+            self.currentImportPercent = 0
             
             with open(filename, 'r') as f:
                 header = True
-                print 'import start :'
+
                 importFileSize = getsize(filename)
-                #print 'importFileSize', filename, '= ', importFileSize
                 byteRead = 0
-                self.currentImportPercent = 0
                 for line in f:
+                    ## compute the current percent imported
                     byteRead += len(line) + 1 # +1 to take into account the RC
-                    #print 'read', byteRead, ' on ', importFileSize
                     self.currentImportPercent = int(byteRead * 100 / importFileSize)
-                    #print 'percent import', percent 
+
+                    ## do not read the header
                     if header == True:
                         header = False
                     else:
                         ## get file data
                         data = line.split('\t')
-                        
+
+                        titleIdIndex = -1
+                        regionIndex = -1
+                        nameIndex = -1
+                        urlIndex = -1
+                        licenseIndex = -1
+                        fwIndex = -1
+                        sizeIndex = -1
+                        contentIdIndex = -1
+                        versionIndex = -1
+                        if importType == 'game':
+                            titleIdIndex = 0
+                            regionIndex = 1
+                            nameIndex = 2
+                            urlIndex = 3
+                            licenseIndex = 4
+                            contentIdIndex = 5
+                        elif importType == 'dlc':
+                            titleIdIndex = 0
+                            regionIndex = 1
+                            nameIndex = 2
+                            urlIndex = 3
+                            licenseIndex = 4
+                            contentIdIndex = 5
+                        elif importType == 'update':
+                            titleIdIndex = 0
+                            regionIndex = 1
+                            nameIndex = 2
+                            versionIndex = 3
+                            urlIndex = 4
+                            fwIndex = 5
+                            sizeIndex = 6
+                        elif importType == 'psm':
+                            titleIdIndex = 0
+                            regionIndex = 1
+                            nameIndex = 2
+                            urlIndex = 3
+                            licenseIndex = 4
+                        elif importType == 'psx':
+                            titleIdIndex = 0
+                            regionIndex = 1
+                            nameIndex = 2
+                            urlIndex = 3
+                            contentIdIndex = 4
+                        elif importType == 'psp':
+                            titleIdIndex = 0
+                            regionIndex = 1
+                            nameIndex = 3
+                            urlIndex = 4
+                            contentIdIndex = 5
+                        elif importType == 'pspdlc':
+                            titleIdIndex = 0
+                            regionIndex = 1
+                            nameIndex = 2
+                            urlIndex = 3
+                            contentIdIndex = 4
+                        #elif importType == 'pkgi':
+            
                         ## search if the pkg already exists
-                        pkgItem = self.SearchDB('contentId', data[5])
-                        #print 'pkgItem', data[5], 'res', pkgItem
-                        if pkgItem != []:
-                            pkgItem = pkgItem[0]
-                            #self.RemoveDB(pkgItem)
+                        if contentIdIndex != -1:
+                            pkgItem = self.SearchDB('contentId', data[contentIdIndex])
+                            if pkgItem != []:
+                                pkgItem = pkgItem[0]
+                                #self.RemoveDB(pkgItem)
+                            else:
+                                pkgItem = etree.SubElement(rootItem, 'vitaPkg')
+
+                            ## get content id
+                            pkgItem.set("contentId", data[contentIdIndex])
                         else:
                             pkgItem = etree.SubElement(rootItem, 'vitaPkg')
 
-                        ## get content id
-                        pkgItem.set("contentId", data[5])
-                        
                         ## get titleID
-                        pkgItem.set("titleId", data[0][0:9])
+                        if titleIdIndex != -1:
+                            pkgItem.set("titleId", data[titleIdIndex][0:9])
 
                         ## get titleType
-                        pkgItem.set("type", appType)
+                        pkgItem.set("type", importType)
 
                         ## get titleRegion
-                        pkgItem.set("titleRegion", data[1])
+                        if regionIndex != -1:
+                            pkgItem.set("titleRegion", data[regionIndex])
 
                         ## get titleName
-                        titleName = data[2]
-                        try: ## unicode pb
-                            ## remove/replace (TODO) special char from title name
-                            titleName = titleName.translate(None, '®™ö®’ü')
-                            #titleName = titleName.translate('o', 'ö')
+                        if nameIndex != -1:
+                            titleName = data[nameIndex]
+                            try: ## unicode pb
+                                ## remove/replace (TODO) special char from title name
+                                titleName = titleName.translate(None, '®™ö®’ü')
+                                #titleName = titleName.translate('o', 'ö')
 
-                            #propItem.text = titleName
-                            pkgItem.set("titleName", titleName)
-                        except:
-                            #propItem.text = titleName = ''
-                            pkgItem.set("titleName", '')
+                                #propItem.text = titleName
+                                pkgItem.set("titleName", titleName)
+                            except:
+                                #propItem.text = titleName = ''
+                                pkgItem.set("titleName", '')
 
                         ## get downloadURL and filename
-                        downloadURL = data[3]
-                        if downloadURL == 'MISSING':
-                            downloadURL = ''
-                            
-                        pkgItem.set("downloadURL", downloadURL)
+                        if urlIndex != -1:
+                            downloadURL = data[urlIndex]
+                            if downloadURL == 'MISSING':
+                                downloadURL = ''
+                                
+                            pkgItem.set("downloadURL", downloadURL)
+
                         pkgItem.set("filename", '')
-                        #if downloadURL != 'MISSING':
-                            #filename = downloadURL.split('/')[-1]
-                        #else:
-                            #filename = ''
-                        #pkgItem.set("downloadURL", downloadURL)
-                        #pkgItem.set("filename", filename)
 
-                        ## get zRIF 
-                        pkgItem.set("zRIF", data[4])
+                        ## get zRIF
+                        if licenseIndex != -1:
+                            pkgItem.set("zRIF", data[licenseIndex])
+
+                        ## get required firmware
+                        if fwIndex != -1:
+                            pkgItem.set('titleFW', data[fwIndex])
                         
-                        ## get fileSize
-                        #try:
-                            #openedUrl = urllib2.urlopen(downloadURL)
-                            #urlInfo = openedUrl.info()
-                            #fileSize = int(urlInfo["Content-Length"])
-                        #except:
-                            #fileSize = ''
-                        fileSize = 0
-                        pkgItem.set("fileSize", str(fileSize))
+                        ## get version
+                        if versionIndex != -1:
+                            pkgItem.set('version', data[versionIndex])
 
+                        ## get fileSize
+                        fileSize = ''
+                        if sizeIndex != -1:
+                            fileSize = data[sizeIndex]
+                        else:
+                            pass
+                            #if downloadURL != '':
+                                #try:
+                                    #openedUrl = urllib2.urlopen(downloadURL)
+                                    #urlInfo = openedUrl.info()
+                                    #fileSize = int(urlInfo["Content-Length"])
+                                #except:
+                                    #fileSize = ''
+                        pkgItem.set("fileSize", fileSize)
+
+            ## stop the refresh thread and send the last refresh import to the UI
+            self.stopRefreshImport = True
+            API.Send('RefreshImportData', self.currentImportPercent)
             #self.SaveDB()
-            print 'import done'
             
     def GetPkgsData(self, *args):
         pkgData = []

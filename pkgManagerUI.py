@@ -58,6 +58,9 @@ class UI(wx.Frame):
         self.ID_IMPORT_DLCS = wx.NewId()
         self.ID_IMPORT_UPDATES = wx.NewId()
         self.ID_IMPORT_PSMS = wx.NewId()
+        self.ID_IMPORT_PSXS = wx.NewId()
+        self.ID_IMPORT_PSPS = wx.NewId()
+        self.ID_IMPORT_PSPDLCS = wx.NewId()
         self.ID_IMPORT_PKGI = wx.NewId()
         
         fileMenu = wx.Menu()
@@ -70,10 +73,16 @@ class UI(wx.Frame):
         menuResetDB = dbMenu.Append(self.ID_RESET_DB,"Reset"," Reset Database")
         menuSaveDB = dbMenu.Append(self.ID_SAVE_DB,"Save"," Save Database")
         dbMenu.AppendSeparator()
-        menuImportGames = dbMenu.Append(self.ID_IMPORT_GAMES,"Import NPS Games"," Import Games")
-        menuImportDLCs = dbMenu.Append(self.ID_IMPORT_DLCS,"Import NPS DLCs"," Import DLC")
-        menuImportUpdates = dbMenu.Append(self.ID_IMPORT_UPDATES,"Import NPS Updates"," Import Updates")
+        menuImportGames = dbMenu.Append(self.ID_IMPORT_GAMES,"Import Vita Games"," Import Vita Games")
+        menuImportDLCs = dbMenu.Append(self.ID_IMPORT_DLCS,"Import Vita DLCs"," Import Vita DLC")
+        menuImportUpdates = dbMenu.Append(self.ID_IMPORT_UPDATES,"Import Vita Updates"," Import Vita Updates")
+        dbMenu.AppendSeparator()
         menuImportPSMs = dbMenu.Append(self.ID_IMPORT_PSMS,"Import PSM Games"," Import PSM Games")
+        dbMenu.AppendSeparator()
+        menuImportPSXs = dbMenu.Append(self.ID_IMPORT_PSXS,"Import PSX Games"," Import PSX Games")
+        dbMenu.AppendSeparator()
+        menuImportPSPs = dbMenu.Append(self.ID_IMPORT_PSPS,"Import PSP Games"," Import PSP Games")
+        menuImportPSPDLCs = dbMenu.Append(self.ID_IMPORT_PSPS,"Import PSP DLC"," Import PSP DLC")
         dbMenu.AppendSeparator()
         menuImportPKGI = dbMenu.Append(self.ID_IMPORT_PKGI,"Import PKGI"," Import PKGI file")
 
@@ -96,6 +105,11 @@ class UI(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnImport, menuImportGames)
         self.Bind(wx.EVT_MENU, self.OnImport, menuImportDLCs)
         self.Bind(wx.EVT_MENU, self.OnImport, menuImportUpdates)
+        self.Bind(wx.EVT_MENU, self.OnImport, menuImportPSMs)
+        self.Bind(wx.EVT_MENU, self.OnImport, menuImportPSXs)
+        self.Bind(wx.EVT_MENU, self.OnImport, menuImportPSPs)
+        self.Bind(wx.EVT_MENU, self.OnImport, menuImportPSPDLCs)
+        self.Bind(wx.EVT_MENU, self.OnImport, menuImportPKGI)
         self.Bind(wx.EVT_MENU, self.OnAbout, menuAbout)
         self.Bind(wx.EVT_MENU, self.OnExit, menuExit)
         
@@ -171,16 +185,44 @@ class UI(wx.Frame):
             
     def OnImport(self, event):
         itemId = event.GetId()
+        dbTitle = ''
+        dbExtension = ''
         importType = ''
         if itemId == self.ID_IMPORT_GAMES:
             importType = 'game'
+            dbTitle = 'Select Vita Game File'
+            dbExtension = 'Vita Game file (*.tsv)|*.tsv'
         elif itemId == self.ID_IMPORT_DLCS:
             importType = 'dlc'
+            dbTitle = 'Select Vita DLC File'
+            dbExtension = 'Vita DLC file (*.tsv)|*.tsv'
         elif itemId == self.ID_IMPORT_UPDATES:
             importType = 'update'
-
+            dbTitle = 'Select Vita Update File'
+            dbExtension = 'Vita Update file (*.tsv)|*.tsv'
+        elif itemId == self.ID_IMPORT_PSMS:
+            importType = 'psm'
+            dbTitle = 'Select PSM Game File'
+            dbExtension = 'PSM Game file (*.tsv)|*.tsv'
+        elif itemId == self.ID_IMPORT_PSXS:
+            importType = 'psx'
+            dbTitle = 'Select Psx Game File'
+            dbExtension = 'Psx Game file (*.tsv)|*.tsv'
+        elif itemId == self.ID_IMPORT_PSPS:
+            importType = 'psp'
+            dbTitle = 'Select PSP Game File'
+            dbExtension = 'PSP Game file (*.tsv)|*.tsv'
+        elif itemId == self.ID_IMPORT_PSPDLCS:
+            importType = 'pspdlc'
+            dbTitle = 'Select PSP DLC File'
+            dbExtension = 'PSP DLC file (*.tsv)|*.tsv'
+        elif itemId == self.ID_IMPORT_PKGI:
+            importType = 'pkgi'
+            dbTitle = 'Select Pkgi File'
+            dbExtension = 'Pkgi file (*.tsv)|*.tsv'
+        
         if importType != '':
-            openDlg = wx.FileDialog(self, "Select NPS file", "", "", "NPS file (*.tsv)|*.tsv", wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
+            openDlg = wx.FileDialog(self, dbTitle, "", "", dbExtension, wx.FD_OPEN | wx.FD_FILE_MUST_EXIST)
 
             openDlg.ShowModal()
             filename = openDlg.GetPath()
@@ -283,12 +325,12 @@ class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin, Column
                     color = wx.Colour('white')
         
                 ## alternate color
-                if rowIndex % 2:
-                    color.MakeDisabled(200)
-                else:
-                    color.MakeDisabled(255)
+                #if rowIndex % 2:
+                color.MakeDisabled(200)
+                #else:
+                    #color.MakeDisabled(255)
                     
-                #self.SetItemBackgroundColour(rowIndex, color)
+                self.SetItemBackgroundColour(rowIndex, color)
 
 
     def __getSelectedEntries(self, entry, entries = []):
@@ -382,7 +424,40 @@ class UIListCtrl(wx.ListCtrl, ListCtrlAutoWidthMixin, CheckListCtrlMixin, Column
         #itemId = event.GetId()
         #print 'OnColClick', event.GetColumn(), event.GetText()
         #self.SortItems(self.ListCompareFunction)
-        
+
+class checkListComboPopup(wx.ComboPopup):
+    def __init__(self, choices):
+        wx.ComboPopup.__init__(self)
+        #self.checklist = wx.PreCheckListBox()
+        self.checklist = wx.CheckListBox()
+        self._value = -1
+
+    def Init(self):
+        self._value = -1
+
+    def Create(self, parent):
+        return self.checklist.Create(parent, 1, wx.Point(0,0), wx.DefaultSize)
+
+    def GetControl(self):
+        return self.checklist
+
+    def SetStringValue(self, s):
+        pass
+
+    def GetStringValue(self):
+        if (self._value >= 0):
+            return self.checklist.GetItemText(self, self._value)
+        else:
+            return wx.EmptyString
+
+    def OnMouseMove(self, event):
+        pass
+
+    def GetPreCheckList(self):
+        return self.checklist
+
+    def OnMouseClick(self, event):
+        pass
         
 class UIToolbarButton(wx.BitmapButton):
     def __init__(self, parent, image, command='', tooltip='', idB=-1):
@@ -404,8 +479,7 @@ class UIToolbarCheck(wx.CheckBox):
             self.Bind(wx.EVT_CHECKBOX, command)
 
         self.SetToolTip(tooltip)
-
-        print 'checked', checked
+        
         self.SetValue(checked)
         
 class UIToolBar(wx.BoxSizer):
@@ -451,6 +525,10 @@ class UIToolBar(wx.BoxSizer):
                 self.AddSpacer(size)
             elif itemType == 'progress':
                 tbItem =  wx.Gauge(parent, idItem)
+            elif itemType == 'checklist':
+                choices = itemData['choices']
+                tbItem =  checkListComboPopup(choices = choices)
+                #tbItem =  wx.CheckListBox(parent, idItem, choices = choices)
                 
             if tbItem != -1:
                 if idItem != -1:
@@ -479,39 +557,46 @@ class PkgFilesView(wx.Panel):
         wx.Panel.__init__(self, parent)
 
         API.Subscribe('RefreshDownloadData', lambda args: self.RefreshDownloadData(*args))
+        API.Subscribe('RefreshImportData', lambda args: self.RefreshImportData(*args))
         API.Subscribe('DownloadDone', lambda args: self.DownloadDone(*args))
 
         ## create the toolbar toolbar
         self.ID_START_BUTTON = wx.NewId()
         self.ID_PAUSE_BUTTON = wx.NewId()
         self.ID_STOP_BUTTON = wx.NewId()
+        self.ID_CHECKLIST_PKG = wx.NewId()
         self.ID_CHECK_GAME = wx.NewId()
         self.ID_CHECK_DLC = wx.NewId()
         self.ID_CHECK_UPDATE = wx.NewId()
         self.ID_CHECK_PSM = wx.NewId()
+        self.ID_CHECK_PSX = wx.NewId()
+        self.ID_CHECK_PSP = wx.NewId()
+        self.ID_CHECK_PSPDLC = wx.NewId()
         self.ID_PROGRESS = wx.NewId()
-            
+
         #description = [ \
             #{'type': 'button', 'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh Pkgs information'}, \
             #{'type': 'button', 'command': self.ClearPkgData, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear Pkgs information'}, \
-            #{'type': 'button', 'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Rename selected Pkg files', 'state': 'disabled'}, \
+            #{'type': 'separator', 'size': 5}, \
+            #{'type': 'check', 'command': '', 'label': 'Game', 'tooltip': 'Select Game', 'id':self.ID_CHECK_GAME, 'checked': True}, \
+            #{'type': 'check', 'command': '', 'label': 'DLC', 'tooltip': 'Select DLC', 'id':self.ID_CHECK_DLC, 'checked': True}, \
+            #{'type': 'check', 'command': '', 'label': 'Update', 'tooltip': 'Select Update', 'id':self.ID_CHECK_UPDATE, 'checked': True}, \
+            #{'type': 'check', 'command': '', 'label': 'PSM', 'tooltip': 'Select PSM', 'id':self.ID_CHECK_PSM, 'checked': True}, \
+            #{'type': 'check', 'command': '', 'label': 'PSX', 'tooltip': 'Select PSX', 'id':self.ID_CHECK_PSX, 'checked': True}, \
+            #{'type': 'check', 'command': '', 'label': 'PSP', 'tooltip': 'Select PSP', 'id':self.ID_CHECK_PSP, 'checked': True}, \
+            #{'type': 'check', 'command': '', 'label': 'PSPDLC', 'tooltip': 'Select PSP DLC', 'id':self.ID_CHECK_PSPDLC, 'checked': True}, \
+           ##{'type': 'button', 'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Rename selected Pkg files', 'state': 'disabled'}, \
             #{'type': 'button', 'command': self.StartDownload, 'image': 'resources/media-playback-start.png', 'tooltip': 'Download selected Pkg files', 'id':self.ID_START_BUTTON}, \
             #{'type': 'button', 'command': self.PauseDownload, 'image': 'resources/media-playback-pause.png', 'tooltip': 'Pause current downloads', 'id':self.ID_PAUSE_BUTTON}, \
             #{'type': 'button', 'command': self.StopDownload, 'image': 'resources/media-playback-stop.png', 'tooltip': 'Stop download operations', 'id':self.ID_STOP_BUTTON, 'state': 'disabled'}, \
             #{'type': 'separator', 'size': 5}, \
-            #{'type': 'check', 'command': '', 'label': 'Game', 'tooltip': 'Select Game', 'id':self.ID_CHECK_GAME}, \
-            #{'type': 'check', 'command': '', 'label': 'DLC', 'tooltip': 'Select DLC', 'id':self.ID_CHECK_GAME}, \
-            #{'type': 'check', 'command': '', 'label': 'Update', 'tooltip': 'Select Update', 'id':self.ID_CHECK_GAME}, \
-            #{'type': 'check', 'command': '', 'label': 'PSM', 'tooltip': 'Select PSM', 'id':self.ID_CHECK_GAME} \
+            #{'type': 'progress', 'id':self.ID_PROGRESS}, \
             #]
         description = [ \
             {'type': 'button', 'command': self.FillValues, 'image': 'resources/view-refresh.png', 'tooltip': 'Refresh Pkgs information'}, \
             {'type': 'button', 'command': self.ClearPkgData, 'image': 'resources/edit-clear.png', 'tooltip': 'Clear Pkgs information'}, \
             {'type': 'separator', 'size': 5}, \
-            {'type': 'check', 'command': '', 'label': 'Game', 'tooltip': 'Select Game', 'id':self.ID_CHECK_GAME, 'checked': True}, \
-            {'type': 'check', 'command': '', 'label': 'DLC', 'tooltip': 'Select DLC', 'id':self.ID_CHECK_DLC, 'checked': True}, \
-            {'type': 'check', 'command': '', 'label': 'Update', 'tooltip': 'Select Update', 'id':self.ID_CHECK_UPDATE, 'checked': True}, \
-            {'type': 'check', 'command': '', 'label': 'PSM', 'tooltip': 'Select PSM', 'id':self.ID_CHECK_PSM, 'checked': True}, \
+            {'type': 'checklist', 'command': '', 'label': 'Game', 'tooltip': 'Select Game', 'id':self.ID_CHECKLIST_PKG, 'choices': ['Game', 'DLC', 'Update', 'PSM', 'PSX', 'PSP', 'PSP DLC']}, \
            #{'type': 'button', 'command': self.Rename, 'image': 'resources/edit-copy.png', 'tooltip': 'Rename selected Pkg files', 'state': 'disabled'}, \
             {'type': 'button', 'command': self.StartDownload, 'image': 'resources/media-playback-start.png', 'tooltip': 'Download selected Pkg files', 'id':self.ID_START_BUTTON}, \
             {'type': 'button', 'command': self.PauseDownload, 'image': 'resources/media-playback-pause.png', 'tooltip': 'Pause current downloads', 'id':self.ID_PAUSE_BUTTON}, \
@@ -523,7 +608,8 @@ class PkgFilesView(wx.Panel):
         self.toolbar = UIToolBar(self, description)
                 
         ## create the tree view
-        self.listPkg = UIListCtrl(self, 'GamePkgFile')
+        #self.listPkg = UIListCtrl(self, 'GamePkgFile')
+        self.listPkg = UIListCtrl(self, 'PkgFile')
 
         ## create the download view
         self.listDownload = UIListCtrl(self, 'DownloadFile', 0, False)
@@ -557,12 +643,22 @@ class PkgFilesView(wx.Panel):
         self.ClearPkgData()
         self.ClearDownloadData()
 
-        gameChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_GAME).GetValue()
-        dlcChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_DLC).GetValue()
-        updateChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_UPDATE).GetValue()
-        psmChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_PSM).GetValue()
-
-        API.Send('RefreshPkgsData', gameChecked, dlcChecked, updateChecked, psmChecked)
+        #gameChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_GAME).GetValue()
+        #dlcChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_DLC).GetValue()
+        #updateChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_UPDATE).GetValue()
+        #psmChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_PSM).GetValue()
+        #psxChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_PSX).GetValue()
+        #pspChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_PSP).GetValue()
+        #pspDlcChecked = self.toolbar.GetToolbarItemByID(self.ID_CHECK_PSPDLC).GetValue()
+        gameChecked = True
+        dlcChecked = True
+        updateChecked = True
+        psmChecked = True
+        psxChecked = True
+        pspChecked = True
+        pspDlcChecked = True
+        
+        API.Send('RefreshPkgsData', gameChecked, dlcChecked, updateChecked, psmChecked, psxChecked, pspChecked, pspDlcChecked)
         pkgsData = API.Send('GetPkgsData')
 
         for pkgData in pkgsData:
@@ -592,7 +688,7 @@ class PkgFilesView(wx.Panel):
                 #time.sleep(1)
         
     def RefreshDownloadData(self, *args):
-        print 'RefreshDownloadData'
+        #print 'RefreshDownloadData'
         res = ''
         code = 0
         message = ''
@@ -601,6 +697,18 @@ class PkgFilesView(wx.Panel):
         downloadsData = API.Send('GetDownloadData')
         for downloadData in downloadsData:        
             self.listDownload.AddEntry(downloadData)
+
+        return res, code, message
+        
+    def RefreshImportData(self, *args):
+        #print 'RefreshImportData'
+        res = ''
+        code = 0
+        message = ''
+
+        importPercent = args[0]
+        print 'importPercent', importPercent
+        self.toolbar.GetToolbarItemByID(self.ID_PROGRESS).SetValue(importPercent)
 
         return res, code, message
         
